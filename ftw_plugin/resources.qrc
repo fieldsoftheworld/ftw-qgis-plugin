@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/plugins/ftw_plugin" >
+        <file>icon.png</file>
+    </qresource>
+</RCC>
