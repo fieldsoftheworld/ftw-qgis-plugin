@@ -26,6 +26,7 @@ import os
 
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
+from qgis.PyQt.QtWidgets import QFileDialog, QHBoxLayout, QRadioButton, QButtonGroup, QGroupBox, QVBoxLayout
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
@@ -42,3 +43,87 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
         # http://qt-project.org/doc/qt-4.8/designer-using-a-ui-file.html
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
+        
+        # Connect the toolButton to the file selection method
+        self.toolButton.clicked.connect(self.select_tif_file)
+        
+        # Connect the Run button to process the selected file
+        self.pushButton.clicked.connect(self.accept)
+        
+        # Connect the Quit button to close the dialog
+        self.pushButton_2.clicked.connect(self.reject)
+        
+        # Store the selected file path
+        self.selected_tif_path = None
+        
+        # Add window selection options
+        self.add_window_options()
+        
+        # Default window option
+        self.selected_window = "A"
+        
+    def add_window_options(self):
+        """Add the Window A and Window B radio button options."""
+        # Create a group box for the window options
+        group_box = QGroupBox("Band Combination Options:", self)
+        
+        # Create a layout for the group box
+        layout = QVBoxLayout()
+        
+        # Create radio buttons
+        self.window_a_radio = QRadioButton("Window A (Bands 1,2,3)", self)
+        self.window_b_radio = QRadioButton("Window B (Bands 5,6,7)", self)
+        
+        # Add radio buttons to a button group
+        self.window_button_group = QButtonGroup(self)
+        self.window_button_group.addButton(self.window_a_radio, 1)
+        self.window_button_group.addButton(self.window_b_radio, 2)
+        
+        # Set Window A as the default selection
+        self.window_a_radio.setChecked(True)
+        
+        # Connect button group to a slot to track selection
+        self.window_button_group.buttonClicked.connect(self.on_window_selected)
+        
+        # Add radio buttons to the layout
+        layout.addWidget(self.window_a_radio)
+        layout.addWidget(self.window_b_radio)
+        
+        # Set the layout on the group box
+        group_box.setLayout(layout)
+        
+        # Initially disable the window options until a file is selected
+        self.window_a_radio.setEnabled(False)
+        self.window_b_radio.setEnabled(False)
+        
+        # Add the group box to the dialog's layout
+        self.gridLayout.addWidget(group_box, 1, 0, 1, 3)
+        
+    def on_window_selected(self, button):
+        """Handle window selection."""
+        if button == self.window_a_radio:
+            self.selected_window = "A"
+        else:
+            self.selected_window = "B"
+        
+    def select_tif_file(self):
+        """Open a file dialog to select a GeoTIFF file."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Model Ready GeoTIFF",
+            "",
+            "GeoTIFF Files (*.tif *.tiff);;All Files (*.*)"
+        )
+        
+        if file_path:
+            # Store the selected file path
+            self.selected_tif_path = file_path
+            
+            # Display the filename in the comboBox
+            file_name = os.path.basename(file_path)
+            self.comboBox.clear()
+            self.comboBox.addItem(file_name)
+            
+            # Enable the window options
+            self.window_a_radio.setEnabled(True)
+            self.window_b_radio.setEnabled(True)

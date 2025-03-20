@@ -23,7 +23,8 @@
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction
+from qgis.PyQt.QtWidgets import QAction, QMessageBox
+from qgis.core import QgsRasterLayer, QgsProject
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -179,6 +180,58 @@ class FTW:
                 action)
             self.iface.removeToolBarIcon(action)
 
+    def load_and_display_tif(self, file_path, window_option):
+        """Load a GeoTIFF file and display selected bands based on the window option.
+        
+        :param file_path: Path to the GeoTIFF file
+        :type file_path: str
+        
+        :param window_option: Which bands to display - "A" for bands 1,2,3 or "B" for bands 5,6,7
+        :type window_option: str
+        
+        :returns: True if successful, False otherwise
+        :rtype: bool
+        """
+        try:
+            # Create a name for the layer based on the file name and window option
+            base_name = os.path.splitext(os.path.basename(file_path))[0]
+            window_text = "Window A (RGB Bands 1,2,3)" if window_option == "A" else "Window B (RGB Bands 5,6,7)"
+            layer_name = f"{base_name} - {window_text}"
+            
+            # Set band options based on window selection
+            if window_option == "A":
+                # Bands for Window A are 1, 2, 3
+                options = "gdal:red=1&green=2&blue=3"
+            else:
+                # Bands for Window B are 5, 6, 7
+                options = "gdal:red=5&green=6&blue=7"
+            
+            # Load the raster layer with the appropriate band options
+            uri = f"{file_path}?{options}"
+            rlayer = QgsRasterLayer(uri, layer_name, 'gdal')
+            
+            # Check if the layer is valid
+            if not rlayer.isValid():
+                QMessageBox.critical(None, "Error", "The selected raster layer is invalid.")
+                return False
+            
+            # Add the layer to the QGIS project
+            QgsProject.instance().addMapLayer(rlayer)
+            
+            # Make sure the layer is visible
+            # Refresh the map canvas
+            self.iface.mapCanvas().refreshAllLayers()
+            
+            # Set the extent to the layer's extent and zoom to it
+            self.iface.setActiveLayer(rlayer)
+            self.iface.zoomToActiveLayer()
+            
+            QMessageBox.information(None, "Success", f"Layer '{layer_name}' has been loaded successfully.")
+            return True
+            
+        except Exception as e:
+            QMessageBox.critical(None, "Error", f"Failed to load raster layer: {str(e)}")
+            return False
 
     def run(self):
         """Run method that performs all the real work"""
@@ -193,8 +246,11 @@ class FTW:
         self.dlg.show()
         # Run the dialog event loop
         result = self.dlg.exec_()
+        
         # See if OK was pressed
         if result:
-            # Do something useful here - delete the line containing pass and
-            # substitute with your code.
-            pass
+            # Check if a file was selected
+            if self.dlg.selected_tif_path:
+                self.load_and_display_tif(self.dlg.selected_tif_path, self.dlg.selected_window)
+            else:
+                QMessageBox.warning(None, "Warning", "No GeoTIFF file was selected.")
