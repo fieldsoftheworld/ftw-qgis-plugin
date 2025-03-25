@@ -49,6 +49,9 @@ MODEL_CONFIGS = {
     }
 }
 
+valid_filenames = ", ".join(config["filename"] for config in MODEL_CONFIGS.values())
+
+
 class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
     def __init__(self, parent=None):
         """Constructor."""
@@ -65,6 +68,9 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
         
         # Connect the raster path button to file dialog
         self.raster_path.clicked.connect(self.browse_raster)
+        
+        # Connect the model path button to file dialog
+        self.model_path.clicked.connect(self.browse_model)
         
         # Connect run button
         self.run_button.clicked.connect(self.run_process)
@@ -186,6 +192,58 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
                     self,
                     "Error",
                     f"Failed to load raster layer: {raster_path}"
+                )
+
+    def browse_model(self):
+        """Open file dialog to select a model checkpoint file."""
+        # Open file dialog
+        file_dialog = QtWidgets.QFileDialog()
+        model_path, _ = file_dialog.getOpenFileName(
+            self,
+            "Select Model Checkpoint",
+            "",
+            "Checkpoint Files (*.ckpt);;All Files (*.*)"
+        )
+        
+        if model_path:
+            # Get the filename without extension
+            model_name = os.path.splitext(os.path.basename(model_path))[0]
+            
+            # Check if this is a known model type
+            known_model = False
+            for config_name, config in MODEL_CONFIGS.items():
+                if config['filename'] == os.path.basename(model_path):
+                    # Select the corresponding model type in combo box
+                    index = self.model_name.findText(config_name)
+                    if index >= 0:
+                        self.model_name.setCurrentIndex(index)
+                    known_model = True
+                    break
+            
+            if not known_model:
+                # Warn user if this is not a known model type
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Warning",
+                    f"This is not a standard FTW model checkpoint.\n\n"
+                    f"Please ensure the model filename is one of:\n{valid_filenames}"
+                )
+            
+            # Copy the model to the models directory for future use
+            try:
+                models_dir = self.get_models_dir()
+                target_path = os.path.join(models_dir, os.path.basename(model_path))
+                
+                # Only copy if it's not already in the models directory
+                if model_path != target_path:
+                    import shutil
+                    shutil.copy2(model_path, target_path)
+                
+            except Exception as e:
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Warning",
+                    f"Failed to copy model to plugin directory: {str(e)}"
                 )
 
     def run_process(self):
