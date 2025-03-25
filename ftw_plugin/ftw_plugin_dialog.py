@@ -23,9 +23,12 @@
 """
 
 import os
+import uuid
 
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
+from qgis.core import QgsProject, QgsRasterLayer
+from qgis.utils import iface
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
@@ -42,3 +45,131 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
         # http://qt-project.org/doc/qt-4.8/designer-using-a-ui-file.html
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
+        
+        # Connect the quit button to close the dialog
+        self.quit_button.clicked.connect(self.close)
+        
+        # Connect the raster path button to file dialog
+        self.raster_path.clicked.connect(self.browse_raster)
+        
+        # Connect run button
+        self.run_button.clicked.connect(self.run_process)
+        
+        # Populate the raster combo box with available layers
+        self.populate_raster_combo()
+    
+    def populate_raster_combo(self):
+        """Populate the raster combo box with available raster layers from QGIS."""
+        # Clear existing items
+        self.raster_name.clear()
+        
+        # Get all layers from the project
+        layers = QgsProject.instance().mapLayers().values()
+        
+        # Filter and add only raster layers to the combo box
+        for layer in layers:
+            if isinstance(layer, QgsRasterLayer):
+                self.raster_name.addItem(layer.name(), layer.id())
+
+    def browse_raster(self):
+        """Open file dialog to select a raster file and add it to QGIS."""
+        # Open file dialog
+        file_dialog = QtWidgets.QFileDialog()
+        raster_path, _ = file_dialog.getOpenFileName(
+            self,
+            "Select Raster Layer",
+            "",
+            "Raster Files (*.tif *.tiff *.img *.jp2 *.asc);;All Files (*.*)"
+        )
+        
+        if raster_path:
+            # Get the filename without extension as the layer name
+            layer_name = os.path.splitext(os.path.basename(raster_path))[0]
+            
+            # Create and add the raster layer to QGIS
+            raster_layer = QgsRasterLayer(raster_path, layer_name)
+            if raster_layer.isValid():
+                QgsProject.instance().addMapLayer(raster_layer)
+                
+                # Update the combo box and select the new layer
+                self.populate_raster_combo()
+                index = self.raster_name.findData(raster_layer.id())
+                if index >= 0:
+                    self.raster_name.setCurrentIndex(index)
+            else:
+                # Show error message if layer is invalid
+                QtWidgets.QMessageBox.critical(
+                    self,
+                    "Error",
+                    f"Failed to load raster layer: {raster_path}"
+                )
+
+    def run_process(self):
+        """Handle the run button click event."""
+        # Get the selected raster layer
+        selected_layer_id = self.raster_name.currentData()
+        if not selected_layer_id:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Warning",
+                "Please select a raster layer first."
+            )
+            return
+            
+        selected_layer = QgsProject.instance().mapLayer(selected_layer_id)
+        if not selected_layer or not selected_layer.isValid():
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Warning",
+                "Selected layer is not valid."
+            )
+            return
+            
+        # Handle band visualization based on checkbox states
+        self.visualize_bands(selected_layer)
+        
+        # TODO: Add other processing steps here
+        
+    def visualize_bands(self, source_layer):
+        """Create band visualizations based on checkbox states."""
+        if not (self.win_a.isChecked() or self.win_b.isChecked()):
+            return
+            
+        source_path = source_layer.source()
+        
+        # Handle Window A visualization (Bands 1,2,3)
+        if self.win_a.isChecked():
+            layer_name = f"{source_layer.name()}_win_A_{str(uuid.uuid4())[:8]}"
+            win_a_layer = QgsRasterLayer(source_path, layer_name)
+            if win_a_layer.isValid():
+                # Set band rendering for R,G,B as 1,2,3
+                win_a_layer.renderer().setRedBand(1)
+                win_a_layer.renderer().setGreenBand(2)
+                win_a_layer.renderer().setBlueBand(3)
+                QgsProject.instance().addMapLayer(win_a_layer)
+            else:
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Warning",
+                    f"Failed to create Window A visualization for {source_layer.name()}"
+                )
+        
+        # Handle Window B visualization (Bands 5,6,7)
+        if self.win_b.isChecked():
+            layer_name = f"{source_layer.name()}_win_B_{str(uuid.uuid4())[:8]}"
+            win_b_layer = QgsRasterLayer(source_path, layer_name)
+            if win_b_layer.isValid():
+                # Set band rendering for R,G,B as 5,6,7
+                win_b_layer.renderer().setRedBand(5)
+                win_b_layer.renderer().setGreenBand(6)
+                win_b_layer.renderer().setBlueBand(7)
+                QgsProject.instance().addMapLayer(win_b_layer)
+            else:
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Warning",
+                    f"Failed to create Window B visualization for {source_layer.name()}"
+                )
+        
+        # Refresh the map canvas
+        iface.mapCanvas().refresh()
