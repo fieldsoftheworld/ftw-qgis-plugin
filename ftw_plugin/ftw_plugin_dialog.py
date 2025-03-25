@@ -24,16 +24,30 @@
 
 import os
 import uuid
+import urllib.request
+from pathlib import Path
 
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
-from qgis.core import QgsProject, QgsRasterLayer
+from qgis.PyQt.QtCore import Qt
+from qgis.core import QgsProject, QgsRasterLayer, QgsApplication
 from qgis.utils import iface
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'ftw_plugin_dialog_base.ui'))
 
+# Model configurations
+MODEL_CONFIGS = {
+    "FTW 3 Classes": {
+        "url": "https://github.com/fieldsoftheworld/ftw-baselines/releases/download/v1/3_Class_FULL_FTW_Pretrained.ckpt",
+        "filename": "3_Class_FULL_FTW_Pretrained.ckpt"
+    },
+    "FTW 2 Classes": {
+        "url": "https://github.com/fieldsoftheworld/ftw-baselines/releases/download/v1/2_Class_FULL_FTW_Pretrained.ckpt",
+        "filename": "2_Class_FULL_FTW_Pretrained.ckpt"
+    }
+}
 
 class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
     def __init__(self, parent=None):
@@ -55,9 +69,79 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
         # Connect run button
         self.run_button.clicked.connect(self.run_process)
         
+        # Setup model combo box
+        self.setup_model_combo()
+        
         # Populate the raster combo box with available layers
         self.populate_raster_combo()
     
+    def setup_model_combo(self):
+        """Setup the model selection combo box."""
+        self.model_name.clear()
+        for model_name in MODEL_CONFIGS.keys():
+            self.model_name.addItem(model_name)
+    
+    def get_models_dir(self):
+        """Get the directory where models should be stored."""
+        # Use QGIS user profile directory to store models
+        profile_dir = QgsApplication.qgisSettingsDirPath()
+        models_dir = os.path.join(profile_dir, 'ftw_models')
+        os.makedirs(models_dir, exist_ok=True)
+        return models_dir
+    
+    def ensure_model_downloaded(self, model_name):
+        """Ensure the selected model is downloaded and return its path."""
+        if model_name not in MODEL_CONFIGS:
+            return None
+            
+        config = MODEL_CONFIGS[model_name]
+        models_dir = self.get_models_dir()
+        model_path = os.path.join(models_dir, config['filename'])
+        
+        # Check if model exists
+        if not os.path.exists(model_path):
+            try:
+                # Show progress dialog
+                progress = QtWidgets.QProgressDialog(
+                    f"Downloading {model_name}...",
+                    "Cancel",
+                    0,
+                    100,
+                    self
+                )
+                progress.setWindowModality(Qt.WindowModal)
+                progress.setAutoClose(True)
+                progress.show()
+                
+                def update_progress(block_num, block_size, total_size):
+                    downloaded = block_num * block_size
+                    if total_size > 0:
+                        percent = min(100, int(downloaded * 100 / total_size))
+                        progress.setValue(percent)
+                        QtWidgets.QApplication.processEvents()
+                
+                # Download the model
+                urllib.request.urlretrieve(
+                    config['url'],
+                    model_path,
+                    reporthook=update_progress
+                )
+                
+                progress.close()
+                return model_path
+                
+            except Exception as e:
+                QtWidgets.QMessageBox.critical(
+                    self,
+                    "Error",
+                    f"Failed to download model: {str(e)}"
+                )
+                if os.path.exists(model_path):
+                    os.remove(model_path)
+                return None
+        
+        return model_path
+
     def populate_raster_combo(self):
         """Populate the raster combo box with available raster layers from QGIS."""
         # Clear existing items
@@ -122,6 +206,17 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
                 self,
                 "Warning",
                 "Selected layer is not valid."
+            )
+            return
+        
+        # Handle model download if needed
+        selected_model = self.model_name.currentText()
+        model_path = self.ensure_model_downloaded(selected_model)
+        if not model_path:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Warning",
+                "Failed to get model checkpoint."
             )
             return
             
