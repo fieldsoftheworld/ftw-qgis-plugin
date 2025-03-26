@@ -90,41 +90,49 @@ def setup_ftw_env(conda_setup, env_name="ftw_plugin"):
     echo "[PROGRESS] 100 Setup complete"
     """
 
-    process = subprocess.Popen(
-        ["bash", "-c", bash_script],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        bufsize=1,
-        universal_newlines=True
-    )
+    try:
+        process = subprocess.Popen(
+            ["bash", "-c", bash_script],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+            universal_newlines=True
+        )
 
-    # Read output line by line and update progress
-    while True:
-        line = process.stdout.readline()
-        if not line and process.poll() is not None:
-            break
-        if line:
-            if "[PROGRESS]" in line:
-                try:
-                    # Extract progress percentage from the line
-                    progress = int(line.split()[1])
-                    # Update the progress bar
-                    if hasattr(QtWidgets.QApplication.instance(), 'activeWindow'):
-                        dialog = QtWidgets.QApplication.instance().activeWindow()
-                        if hasattr(dialog, 'progress_bar'):
-                            dialog.progress_bar.setValue(progress)
-                            QtWidgets.QApplication.processEvents()
-                except:
-                    pass
+        # Read output line by line and update progress
+        while True:
+            line = process.stdout.readline()
+            if not line and process.poll() is not None:
+                break
+            if line:
+                if "[PROGRESS]" in line:
+                    try:
+                        # Extract progress percentage from the line
+                        progress = int(line.split()[1])
+                        # Update the progress bar
+                        if hasattr(QtWidgets.QApplication.instance(), 'activeWindow'):
+                            dialog = QtWidgets.QApplication.instance().activeWindow()
+                            if hasattr(dialog, 'progress_bar'):
+                                dialog.progress_bar.setValue(progress)
+                                QtWidgets.QApplication.processEvents()
+                    except:
+                        pass
 
-    # Wait for the process to complete
-    process.wait()
-    
-    # Check for errors
-    if process.returncode != 0:
-        error_output = process.stderr.read()
-        raise Exception(f"Environment setup failed: {error_output}")
+        # Wait for the process to complete
+        process.wait()
+        
+        # Check for errors
+        if process.returncode != 0:
+            error_output = process.stderr.read()
+            raise Exception(f"Environment setup failed: {error_output}")
+            
+    finally:
+        # Ensure all pipes are closed
+        if 'process' in locals():
+            process.stdout.close()
+            process.stderr.close()
+            process.terminate()
 
 
 class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
