@@ -26,12 +26,17 @@ import os
 import uuid
 import urllib.request
 from pathlib import Path
+import sys
 
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
 from qgis.PyQt.QtCore import Qt
 from qgis.core import QgsProject, QgsRasterLayer, QgsApplication
 from qgis.utils import iface
+
+import subprocess
+
+
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
@@ -51,11 +56,65 @@ MODEL_CONFIGS = {
 
 valid_filenames = ", ".join(config["filename"] for config in MODEL_CONFIGS.values())
 
+def setup_ftw_env():
+
+    os.environ.pop("PYTHONHOME", None)
+    os.environ.pop("PYTHONPATH", None)
+
+    conda_setup = "/Users/gmuhawen/Software/miniconda3/etc/profile.d/conda.sh"
+
+    bash_script = f"""
+    source "{conda_setup}"
+
+    # Step 1: Create env if it doesn't exist
+    if ! conda env list | grep -q "^ftw_plugin"; then
+        echo "[INFO] Creating conda environment 'ftw_plugin'..."
+        conda create -y -n ftw_plugin python=3.10
+    else
+        echo "[INFO] Conda environment 'ftw_plugin' already exists."
+    fi
+
+    # Step 2: Try to run 'ftw inference --help'
+    echo "[INFO] Checking if 'ftw' CLI is available..."
+    conda activate ftw_plugin
+    if ftw inference --help > /dev/null 2>&1; then
+        echo "[INFO] 'ftw' CLI already available. Skipping installation."
+    else
+        echo "[INFO] Installing required packages..."
+        conda install -y -c conda-forge libgdal-arrow-parquet
+        pip install ftw-tools
+    fi
+
+    # Final Test
+    echo "[INFO] Final test of 'ftw inference --help'"
+    ftw inference --help
+    """
+
+    result = subprocess.run(
+        ["bash", "-c", bash_script],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+
 
 class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
-    def __init__(self, parent=None):
+    def __init__(self, iface, parent=None):
         """Constructor."""
         super(FTWDialog, self).__init__(parent)
+        self.iface = iface
+        
+        # Print environment information
+        print("\n=== Environment Information ===")
+        print(f"Python executable: {sys.executable}")
+        print(f"Python version: {sys.version}")
+        print(f"Environment PATH: {os.environ.get('PATH', 'Not set')}")
+        print(f"CONDA_PREFIX: {os.environ.get('CONDA_PREFIX', 'Not set')}")
+        print(f"CONDA_DEFAULT_ENV: {os.environ.get('CONDA_DEFAULT_ENV', 'Not set')}")
+        print(f"CONDA_PYTHON_EXE: {os.environ.get('CONDA_PYTHON_EXE', 'Not set')}")
+        print("=============================\n")
+
+
         # Set up the user interface from Designer through FORM_CLASS.
         # After self.setupUi() you can access any designer object by doing
         # self.<objectname>, and you can use autoconnect slots - see
@@ -94,6 +153,9 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
         
         # Populate the raster combo box with available layers
         self.populate_raster_combo()
+
+        setup_ftw_env()
+
     
     def setup_model_combo(self):
         """Setup the model selection combo box."""
