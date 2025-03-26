@@ -27,6 +27,7 @@ import uuid
 import urllib.request
 from pathlib import Path
 import sys
+import json
 
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
@@ -56,12 +57,10 @@ MODEL_CONFIGS = {
 
 valid_filenames = ", ".join(config["filename"] for config in MODEL_CONFIGS.values())
 
-def setup_ftw_env():
+def setup_ftw_env(conda_setup):
 
     os.environ.pop("PYTHONHOME", None)
     os.environ.pop("PYTHONPATH", None)
-
-    conda_setup = "/Users/gmuhawen/Software/miniconda3/etc/profile.d/conda.sh"
 
     bash_script = f"""
     source "{conda_setup}"
@@ -115,13 +114,33 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
         print("=============================\n")
 
 
-        # Set up the user interface from Designer through FORM_CLASS.
-        # After self.setupUi() you can access any designer object by doing
-        # self.<objectname>, and you can use autoconnect slots - see
-        # http://qt-project.org/doc/qt-4.8/designer-using-a-ui-file.html
-        # #widgets-and-dialogs-with-auto-connect
+        # Set up the dialog from the UI
         self.setupUi(self)
         
+        # Initialize settings
+        self.settings_file = os.path.join(
+            QgsApplication.qgisSettingsDirPath(),
+            "ftw_plugin_settings.json"
+        )
+        
+        # Set up the user interface from Designer through FORM_CLASS.
+        # After self.setupUi() you can access any designer object by doing
+        # self.<objectName>, and you can use autoconnect slots - see
+        # http://doc.qt.io/qt-5/designer-using-a-ui-file.html
+        # #widgets-and-dialogs-with-auto-connect
+        self.setupConnections()
+        
+        # Populate the raster combo box
+        self.populate_raster_combo()
+        
+        # Load saved settings
+        self.load_settings()
+        
+        # Setup model combo box
+        self.setup_model_combo()
+
+    def setupConnections(self):
+        """Set up all signal connections for the dialog."""
         # Connect the quit button to close the dialog
         self.quit_button.clicked.connect(self.close)
         
@@ -147,15 +166,6 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
         
         # Connect polygonize flag checkbox
         self.polygonize_flag.stateChanged.connect(self.update_polygonize_options)
-        
-        # Setup model combo box
-        self.setup_model_combo()
-        
-        # Populate the raster combo box with available layers
-        self.populate_raster_combo()
-
-        setup_ftw_env()
-
     
     def setup_model_combo(self):
         """Setup the model selection combo box."""
@@ -464,6 +474,63 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
         # Refresh the map canvas
         iface.mapCanvas().refresh()
         
+    def detect_conda_env(self):
+        """Detect conda environment and return its path."""
+        # Try to find conda in common locations
+        possible_conda_paths = [
+            os.path.expanduser("~/anaconda3"),
+            os.path.expanduser("~/miniconda3"),
+            "/opt/anaconda3",
+            "/opt/miniconda3"
+        ]
+        
+        # Check if conda is in PATH
+        import subprocess
+        try:
+            conda_path = subprocess.check_output(['which', 'conda']).decode().strip()
+            if conda_path:
+                # Get the conda environment path
+                conda_env = subprocess.check_output(['conda', 'info', '--base']).decode().strip()
+                if conda_env:
+                    return conda_env
+        except:
+            pass
+            
+        # If not found in PATH, check common locations
+        for path in possible_conda_paths:
+            if os.path.exists(path):
+                return path
+                
+        return None
+        
+    def load_settings(self):
+        """Load plugin settings from JSON file."""
+        if os.path.exists(self.settings_file):
+            try:
+                with open(self.settings_file, 'r') as f:
+                    settings = json.load(f)
+                    if 'conda_path' in settings:
+                        # Validate the saved conda path
+                        conda_path = settings['conda_path']
+                        if os.path.exists(conda_path):
+                            self.conda_path = conda_path
+                            return
+            except Exception as e:
+                print(f"Error loading settings: {str(e)}")
+        
+        # If no valid settings found, set conda_path to None
+        self.conda_path = None
+        
+    def save_settings(self, conda_path):
+        """Save plugin settings to JSON file."""
+        try:
+            settings = {'conda_path': conda_path}
+            with open(self.settings_file, 'w') as f:
+                json.dump(settings, f)
+            self.conda_path = conda_path
+        except Exception as e:
+            print(f"Error saving settings: {str(e)}")
+            
     def collect_inputs(self):
         """Collect and validate all necessary inputs for model processing."""
         inputs = {}
@@ -540,20 +607,78 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
         # Get model type (2 or 3 classes)
         inputs['model_type'] = "3" if selected_model == "FTW 3 Classes" else "2"
         
+        # Get conda environment path
+        if self.conda_path and os.path.exists(self.conda_path):
+            inputs['conda_path'] = self.conda_path
+        else:
+            conda_path = self.detect_conda_env()
+            if not conda_path:
+                # Prompt user for conda path
+                conda_path, ok = QtWidgets.QInputDialog.getText(
+                    self,
+                    "Conda Environment",
+                    "Please enter the path to your conda environment (e.g., ~/anaconda3 or ~/miniconda3) or the full path to conda.sh:",
+                    text=os.path.expanduser("~/anaconda3")
+                )
+                if not ok or not conda_path:
+                    QtWidgets.QMessageBox.warning(
+                        self,
+                        "Warning",
+                        "Conda environment path is required."
+                    )
+                    return None
+                    
+                # Expand any user path (e.g., ~) to full path
+                conda_path = os.path.expanduser(conda_path)
+                
+                # Check if the path is to conda.sh
+                if conda_path.endswith('conda.sh'):
+                    if not os.path.exists(conda_path):
+                        QtWidgets.QMessageBox.warning(
+                            self,
+                            "Warning",
+                            f"Conda setup script not found at: {conda_path}"
+                        )
+                        return None
+                    conda_sh_path = conda_path
+                else:
+                    # If it's a parent directory, construct the conda.sh path
+                    if not os.path.exists(conda_path):
+                        QtWidgets.QMessageBox.warning(
+                            self,
+                            "Warning",
+                            f"Conda environment not found at: {conda_path}"
+                        )
+                        return None
+                        
+                    conda_sh_path = os.path.join(conda_path, "etc", "profile.d", "conda.sh")
+                    if not os.path.exists(conda_sh_path):
+                        QtWidgets.QMessageBox.warning(
+                            self,
+                            "Warning",
+                            f"Conda setup script not found at: {conda_sh_path}"
+                        )
+                        return None
+                
+                # Save the valid conda path
+                self.save_settings(conda_sh_path)
+                inputs['conda_path'] = conda_sh_path
+            else:
+                inputs['conda_path'] = conda_path
+        
         return inputs
     
     def run_process(self):
         """Handle the run button click event."""
         # Collect and validate all inputs
         inputs = self.collect_inputs()
-        print(inputs)
         if inputs is None:
             return
             
         try:
             # Show progress dialog
             progress = QtWidgets.QProgressDialog(
-                "Processing...",
+                "Setting up environment...",
                 "Cancel",
                 0,
                 100,
@@ -563,6 +688,18 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
             progress.setAutoClose(True)
             progress.show()
             
+            # Update progress message
+            progress.setLabelText("Setting up FTW environment...")
+            QtWidgets.QApplication.processEvents()
+            
+            # Set up the environment
+            setup_ftw_env(inputs['conda_path'])
+            
+            # Update progress for model processing
+            progress.setLabelText("Processing raster with model...")
+            progress.setValue(50)  # Set to 50% after environment setup
+            QtWidgets.QApplication.processEvents()
+            
             # TODO: Add actual model processing here
             # This is where we'll add the code to:
             # 1. Load the model
@@ -570,8 +707,8 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
             # 3. Handle polygonization if enabled
             # 4. Save the output
             
-            # For now, just simulate progress
-            for i in range(101):
+            # For now, just simulate progress for the model processing part
+            for i in range(51, 101):
                 if progress.wasCanceled():
                     break
                 progress.setValue(i)
