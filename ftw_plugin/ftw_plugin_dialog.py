@@ -57,8 +57,8 @@ MODEL_CONFIGS = {
 
 valid_filenames = ", ".join(config["filename"] for config in MODEL_CONFIGS.values())
 
-def setup_ftw_env(conda_setup):
-
+def setup_ftw_env(conda_setup, env_name="ftw_plugin"):
+    """Set up the FTW environment with progress updates."""
     os.environ.pop("PYTHONHOME", None)
     os.environ.pop("PYTHONPATH", None)
 
@@ -66,35 +66,65 @@ def setup_ftw_env(conda_setup):
     source "{conda_setup}"
 
     # Step 1: Create env if it doesn't exist
-    if ! conda env list | grep -q "^ftw_plugin"; then
-        echo "[INFO] Creating conda environment 'ftw_plugin'..."
-        conda create -y -n ftw_plugin python=3.10
+    if ! conda env list | grep -q "^{env_name}"; then
+        echo "[PROGRESS] 25 Creating conda environment '{env_name}'..."
+        conda create -y -n {env_name} python=3.10
     else
-        echo "[INFO] Conda environment 'ftw_plugin' already exists."
+        echo "[PROGRESS] 25 Conda environment '{env_name}' already exists."
     fi
 
     # Step 2: Try to run 'ftw inference --help'
-    echo "[INFO] Checking if 'ftw' CLI is available..."
-    conda activate ftw_plugin
+    echo "[PROGRESS] 50 Checking if 'ftw' CLI is available..."
+    conda activate {env_name}
     if ftw inference --help > /dev/null 2>&1; then
-        echo "[INFO] 'ftw' CLI already available. Skipping installation."
+        echo "[PROGRESS] 75 'ftw' CLI already available. Skipping installation."
     else
-        echo "[INFO] Installing required packages..."
+        echo "[PROGRESS] 75 Installing required packages..."
         conda install -y -c conda-forge libgdal-arrow-parquet
         pip install ftw-tools
     fi
 
     # Final Test
-    echo "[INFO] Final test of 'ftw inference --help'"
+    echo "[PROGRESS] 90 Final test of 'ftw inference --help'"
     ftw inference --help
+    echo "[PROGRESS] 100 Setup complete"
     """
 
-    result = subprocess.run(
+    process = subprocess.Popen(
         ["bash", "-c", bash_script],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True
+        text=True,
+        bufsize=1,
+        universal_newlines=True
     )
+
+    # Read output line by line and update progress
+    while True:
+        line = process.stdout.readline()
+        if not line and process.poll() is not None:
+            break
+        if line:
+            if "[PROGRESS]" in line:
+                try:
+                    # Extract progress percentage from the line
+                    progress = int(line.split()[1])
+                    # Update the progress bar
+                    if hasattr(QtWidgets.QApplication.instance(), 'activeWindow'):
+                        dialog = QtWidgets.QApplication.instance().activeWindow()
+                        if hasattr(dialog, 'progress_bar'):
+                            dialog.progress_bar.setValue(progress)
+                            QtWidgets.QApplication.processEvents()
+                except:
+                    pass
+
+    # Wait for the process to complete
+    process.wait()
+    
+    # Check for errors
+    if process.returncode != 0:
+        error_output = process.stderr.read()
+        raise Exception(f"Environment setup failed: {error_output}")
 
 
 class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
@@ -193,23 +223,17 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
         # Check if model exists
         if not os.path.exists(model_path):
             try:
-                # Show progress dialog
-                progress = QtWidgets.QProgressDialog(
-                    f"Downloading {model_name}...",
-                    "Cancel",
-                    0,
-                    100,
-                    self
-                )
-                progress.setWindowModality(Qt.WindowModal)
-                progress.setAutoClose(True)
-                progress.show()
+                # Enable the cancel button and reset progress
+                self.cancel_button.setEnabled(True)
+                self.progress_bar.setValue(0)
+                self.progress_bar.setFormat("Downloading model...")
+                QtWidgets.QApplication.processEvents()
                 
                 def update_progress(block_num, block_size, total_size):
                     downloaded = block_num * block_size
                     if total_size > 0:
                         percent = min(100, int(downloaded * 100 / total_size))
-                        progress.setValue(percent)
+                        self.progress_bar.setValue(percent)
                         QtWidgets.QApplication.processEvents()
                 
                 # Download the model
@@ -219,10 +243,13 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
                     reporthook=update_progress
                 )
                 
-                progress.close()
+                # Disable the cancel button
+                self.cancel_button.setEnabled(False)
                 return model_path
                 
             except Exception as e:
+                # Disable the cancel button
+                self.cancel_button.setEnabled(False)
                 QtWidgets.QMessageBox.critical(
                     self,
                     "Error",
@@ -676,28 +703,20 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
             return
             
         try:
-            # Show progress dialog
-            progress = QtWidgets.QProgressDialog(
-                "Setting up environment...",
-                "Cancel",
-                0,
-                100,
-                self
-            )
-            progress.setWindowModality(Qt.WindowModal)
-            progress.setAutoClose(True)
-            progress.show()
+            # Enable the cancel button and reset progress
+            self.cancel_button.setEnabled(True)
+            self.progress_bar.setValue(0)
             
-            # Update progress message
-            progress.setLabelText("Setting up FTW environment...")
+            # Update progress message for environment setup
+            self.progress_bar.setFormat("Setting up a conda environment...")
             QtWidgets.QApplication.processEvents()
             
             # Set up the environment
             setup_ftw_env(inputs['conda_path'])
             
             # Update progress for model processing
-            progress.setLabelText("Processing raster with model...")
-            progress.setValue(50)  # Set to 50% after environment setup
+            self.progress_bar.setFormat("Running inference...")
+            self.progress_bar.setValue(50)  # Set to 50% after environment setup
             QtWidgets.QApplication.processEvents()
             
             # TODO: Add actual model processing here
@@ -709,10 +728,13 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
             
             # For now, just simulate progress for the model processing part
             for i in range(51, 101):
-                if progress.wasCanceled():
+                if self.cancel_button.isChecked():
                     break
-                progress.setValue(i)
+                self.progress_bar.setValue(i)
                 QtWidgets.QApplication.processEvents()
+            
+            # Disable the cancel button
+            self.cancel_button.setEnabled(False)
             
             QtWidgets.QMessageBox.information(
                 self,
@@ -721,6 +743,8 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
             )
             
         except Exception as e:
+            # Disable the cancel button
+            self.cancel_button.setEnabled(False)
             QtWidgets.QMessageBox.critical(
                 self,
                 "Error",
