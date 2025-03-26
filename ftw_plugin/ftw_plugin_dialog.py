@@ -75,6 +75,14 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
         # Connect run button
         self.run_button.clicked.connect(self.run_process)
         
+        # Connect add_map button
+        self.add_map.clicked.connect(self.add_visualizations_to_map)
+        
+        # Connect checkboxes for enabling/disabling the add_map button
+        self.win_a.stateChanged.connect(self.update_add_map_button_state)
+        self.win_b.stateChanged.connect(self.update_add_map_button_state)
+        self.nir.stateChanged.connect(self.update_add_map_button_state)
+        
         # Setup model combo box
         self.setup_model_combo()
         
@@ -246,8 +254,15 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
                     f"Failed to copy model to plugin directory: {str(e)}"
                 )
 
-    def run_process(self):
-        """Handle the run button click event."""
+    def update_add_map_button_state(self):
+        """Enable or disable the add_map button based on checkbox states."""
+        # Enable the button if any visualization option is checked
+        self.add_map.setEnabled(
+            self.win_a.isChecked() or self.win_b.isChecked() or self.nir.isChecked()
+        )
+    
+    def add_visualizations_to_map(self):
+        """Add selected visualizations to the map."""
         # Get the selected raster layer
         selected_layer_id = self.raster_name.currentData()
         if not selected_layer_id:
@@ -266,26 +281,13 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
                 "Selected layer is not valid."
             )
             return
-        
-        # Handle model download if needed
-        selected_model = self.model_name.currentText()
-        model_path = self.ensure_model_downloaded(selected_model)
-        if not model_path:
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Warning",
-                "Failed to get model checkpoint."
-            )
-            return
             
-        # Handle band visualization based on checkbox states
+        # Create visualizations based on checkbox states
         self.visualize_bands(selected_layer)
-        
-        # TODO: Add other processing steps here
         
     def visualize_bands(self, source_layer):
         """Create band visualizations based on checkbox states."""
-        if not (self.win_a.isChecked() or self.win_b.isChecked()):
+        if not (self.win_a.isChecked() or self.win_b.isChecked() or self.nir.isChecked()):
             return
             
         source_path = source_layer.source()
@@ -324,5 +326,75 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
                     f"Failed to create Window B visualization for {source_layer.name()}"
                 )
         
+        # Handle NIR false color visualizations
+        if self.nir.isChecked():
+            # NIR false color for Window A (Bands 4,1,2 for NIR,R,G)
+            layer_name = f"{source_layer.name()}_NIR_A_{str(uuid.uuid4())[:8]}"
+            nir_a_layer = QgsRasterLayer(source_path, layer_name)
+            if nir_a_layer.isValid():
+                # Set band rendering for R,G,B as 4,1,2 (NIR, Red, Green)
+                nir_a_layer.renderer().setRedBand(4)
+                nir_a_layer.renderer().setGreenBand(1)
+                nir_a_layer.renderer().setBlueBand(2)
+                QgsProject.instance().addMapLayer(nir_a_layer)
+            else:
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Warning",
+                    f"Failed to create NIR Window A visualization for {source_layer.name()}"
+                )
+                
+            # NIR false color for Window B (Bands 8,5,6 for NIR,R,G)
+            layer_name = f"{source_layer.name()}_NIR_B_{str(uuid.uuid4())[:8]}"
+            nir_b_layer = QgsRasterLayer(source_path, layer_name)
+            if nir_b_layer.isValid():
+                # Set band rendering for R,G,B as 8,5,6 (NIR, Red, Green)
+                nir_b_layer.renderer().setRedBand(8)
+                nir_b_layer.renderer().setGreenBand(5)
+                nir_b_layer.renderer().setBlueBand(6)
+                QgsProject.instance().addMapLayer(nir_b_layer)
+            else:
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Warning",
+                    f"Failed to create NIR Window B visualization for {source_layer.name()}"
+                )
+        
         # Refresh the map canvas
         iface.mapCanvas().refresh()
+        
+    def run_process(self):
+        """Handle the run button click event."""
+        # Get the selected raster layer
+        selected_layer_id = self.raster_name.currentData()
+        if not selected_layer_id:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Warning",
+                "Please select a raster layer first."
+            )
+            return
+            
+        selected_layer = QgsProject.instance().mapLayer(selected_layer_id)
+        if not selected_layer or not selected_layer.isValid():
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Warning",
+                "Selected layer is not valid."
+            )
+            return
+        
+        # Handle model download if needed
+        selected_model = self.model_name.currentText()
+        model_path = self.ensure_model_downloaded(selected_model)
+        if not model_path:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Warning",
+                "Failed to get model checkpoint."
+            )
+            return
+        
+        # Removed visualization step - only done by add_map button now
+        
+        # TODO: Add other processing steps here
