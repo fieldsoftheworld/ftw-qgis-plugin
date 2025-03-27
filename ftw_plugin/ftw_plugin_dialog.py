@@ -57,83 +57,6 @@ MODEL_CONFIGS = {
 
 valid_filenames = ", ".join(config["filename"] for config in MODEL_CONFIGS.values())
 
-def setup_ftw_env(conda_setup, env_name="ftw_plugin"):
-    """Set up the FTW environment with progress updates."""
-    os.environ.pop("PYTHONHOME", None)
-    os.environ.pop("PYTHONPATH", None)
-
-    bash_script = f"""
-    source "{conda_setup}"
-
-    # Step 1: Create env if it doesn't exist
-    if ! conda env list | grep -q "^{env_name}"; then
-        echo "[PROGRESS] 25 Creating conda environment '{env_name}'..."
-        conda create -y -n {env_name} python=3.10
-    else
-        echo "[PROGRESS] 25 Conda environment '{env_name}' already exists."
-    fi
-
-    # Step 2: Try to run 'ftw inference --help'
-    echo "[PROGRESS] 50 Checking if 'ftw' CLI is available..."
-    conda activate {env_name}
-    if ftw inference --help > /dev/null 2>&1; then
-        echo "[PROGRESS] 75 'ftw' CLI already available. Skipping installation."
-    else
-        echo "[PROGRESS] 75 Installing required packages..."
-        conda install -y -c conda-forge libgdal-arrow-parquet
-        pip install ftw-tools
-    fi
-
-    # Final Test
-    echo "[PROGRESS] 90 Final test of 'ftw inference --help'"
-    ftw inference --help
-    echo "[PROGRESS] 100 Setup complete"
-    """
-
-    try:
-        process = subprocess.Popen(
-            ["bash", "-c", bash_script],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
-            universal_newlines=True
-        )
-
-        # Read output line by line and update progress
-        while True:
-            line = process.stdout.readline()
-            if not line and process.poll() is not None:
-                break
-            if line:
-                if "[PROGRESS]" in line:
-                    try:
-                        # Extract progress percentage from the line
-                        progress = int(line.split()[1])
-                        # Update the progress bar
-                        if hasattr(QtWidgets.QApplication.instance(), 'activeWindow'):
-                            dialog = QtWidgets.QApplication.instance().activeWindow()
-                            if hasattr(dialog, 'progress_bar'):
-                                dialog.progress_bar.setValue(progress)
-                                QtWidgets.QApplication.processEvents()
-                    except:
-                        pass
-
-        # Wait for the process to complete
-        process.wait()
-        
-        # Check for errors
-        if process.returncode != 0:
-            error_output = process.stderr.read()
-            raise Exception(f"Environment setup failed: {error_output}")
-            
-    finally:
-        # Ensure all pipes are closed
-        if 'process' in locals():
-            process.stdout.close()
-            process.stderr.close()
-            process.terminate()
-
 
 class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
     def __init__(self, iface, parent=None):
@@ -549,17 +472,23 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
                         conda_path = settings['conda_path']
                         if os.path.exists(conda_path):
                             self.conda_path = conda_path
+                            # Load environment name if it exists, otherwise use default
+                            self.env_name = settings.get('env_name', 'ftw_plugin')
                             return
             except Exception as e:
                 print(f"Error loading settings: {str(e)}")
         
-        # If no valid settings found, set conda_path to None
+        # If no valid settings found, set defaults
         self.conda_path = None
+        self.env_name = 'ftw_plugin'
         
     def save_settings(self, conda_path):
         """Save plugin settings to JSON file."""
         try:
-            settings = {'conda_path': conda_path}
+            settings = {
+                'conda_path': conda_path,
+                'env_name': getattr(self, 'env_name', 'ftw_plugin')
+            }
             with open(self.settings_file, 'w') as f:
                 json.dump(settings, f)
             self.conda_path = conda_path
@@ -701,6 +630,9 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
             else:
                 inputs['conda_path'] = conda_path
         
+        # Add environment name to inputs
+        inputs['env_name'] = getattr(self, 'env_name', 'ftw_plugin')
+        
         return inputs
     
     def run_process(self):
@@ -719,8 +651,8 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
             self.progress_bar.setFormat("Setting up a conda environment...")
             QtWidgets.QApplication.processEvents()
             
-            # Set up the environment
-            setup_ftw_env(inputs['conda_path'])
+            # Set up the environment with the saved environment name
+            setup_ftw_env(inputs['conda_path'], inputs['env_name'])
             
             # Update progress for model processing
             self.progress_bar.setFormat("Running inference...")
@@ -728,11 +660,14 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
             QtWidgets.QApplication.processEvents()
             
             # TODO: Add actual model processing here
+            print(inputs)
             # This is where we'll add the code to:
             # 1. Load the model
             # 2. Process the raster
             # 3. Handle polygonization if enabled
             # 4. Save the output
+            run_inference(inputs)
+            print("Inference completed Gedeon")
             
             # For now, just simulate progress for the model processing part
             for i in range(51, 101):
@@ -758,3 +693,184 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
                 "Error",
                 f"An error occurred during processing: {str(e)}"
             )
+
+
+def setup_ftw_env(conda_setup, env_name):
+    """Set up the FTW environment with progress updates."""
+    os.environ.pop("PYTHONHOME", None)
+    os.environ.pop("PYTHONPATH", None)
+
+    bash_script = f"""
+    source "{conda_setup}"
+
+    # Step 1: Create env if it doesn't exist
+    if ! conda env list | grep -q "^{env_name}"; then
+        echo "[PROGRESS] 25 Creating conda environment '{env_name}'..."
+        conda create -y -n {env_name} python=3.9
+    else
+        echo "[PROGRESS] 25 Conda environment '{env_name}' already exists."
+    fi
+
+    # Step 2: Try to run 'ftw inference --help'
+    echo "[PROGRESS] 50 Checking if 'ftw' CLI is available..."
+    conda activate {env_name}
+    if ftw inference --help > /dev/null 2>&1; then
+        echo "[PROGRESS] 75 'ftw' CLI already available. Skipping installation."
+    else
+        echo "[PROGRESS] 75 Installing required packages..."
+        conda install -y -c conda-forge gdal rasterio pyproj libgdal-arrow-parquet
+        pip install ftw-tools
+    fi
+
+    # Final Test
+    echo "[PROGRESS] 90 Final test of 'ftw inference --help'"
+    ftw inference --help
+    echo "[PROGRESS] 100 Setup complete"
+    """
+
+    try:
+        process = subprocess.Popen(
+            ["bash", "-c", bash_script],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+            universal_newlines=True
+        )
+
+        # Read output line by line and update progress
+        while True:
+            line = process.stdout.readline()
+            if not line and process.poll() is not None:
+                break
+            if line:
+                if "[PROGRESS]" in line:
+                    try:
+                        # Extract progress percentage from the line
+                        progress = int(line.split()[1])
+                        # Update the progress bar
+                        if hasattr(QtWidgets.QApplication.instance(), 'activeWindow'):
+                            dialog = QtWidgets.QApplication.instance().activeWindow()
+                            if hasattr(dialog, 'progress_bar'):
+                                dialog.progress_bar.setValue(progress)
+                                QtWidgets.QApplication.processEvents()
+                    except:
+                        pass
+
+        # Wait for the process to complete
+        process.wait()
+        
+        # Check for errors
+        if process.returncode != 0:
+            error_output = process.stderr.read()
+            raise Exception(f"Environment setup failed: {error_output}")
+            
+    finally:
+        # Ensure all pipes are closed
+        if 'process' in locals():
+            process.stdout.close()
+            process.stderr.close()
+            process.terminate()
+
+def run_inference(inputs):
+    """Run FTW inference (and optional polygonization) inside a Conda environment with progress updates."""
+    os.environ.pop("PYTHONHOME", None)
+    os.environ.pop("PYTHONPATH", None)
+
+    conda_setup = inputs['conda_path']
+    raster_path = inputs['raster_path']
+    model_path = inputs['model_path']
+    output_path = inputs['output_path']
+    env_name = inputs.get('env_name', 'ftw_plugin')
+    polygonize_enabled = inputs.get('polygonize_enabled', False)
+    simplify_value = inputs.get('simplify_value', 20)
+
+    # Prepare polygonization command if enabled
+    polygonize_command = ""
+    if polygonize_enabled:
+        polygonize_command = f"""
+        echo "[PROGRESS] 85 Running polygonization..."
+        if ! ftw inference polygonize "{output_path}" --simplify {simplify_value}; then
+            echo "[ERROR] Polygonization failed"
+            exit 1
+        fi
+        echo "[PROGRESS] 90 Polygonization complete"
+        """
+
+    bash_script = f"""
+    source "{conda_setup}"
+    conda activate {env_name}
+
+    # Run inference
+    echo "[PROGRESS] 60 Starting inference..."
+    echo "[INFO] Using model: {model_path}"
+    echo "[INFO] Processing raster: {raster_path}"
+    
+    if ! ftw inference run "{raster_path}" --model "{model_path}" --out "{output_path}" --overwrite; then
+        echo "[ERROR] Inference failed"
+        exit 1
+    fi
+    echo "[PROGRESS] 80 Inference complete"
+
+    # Optional polygonization
+    {polygonize_command}
+
+    echo "[PROGRESS] 100 Process complete"
+    """
+
+    try:
+        process = subprocess.Popen(
+            ["bash", "-c", bash_script],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+            universal_newlines=True
+        )
+
+        # Store output for error reporting
+        stdout_lines = []
+        stderr_lines = []
+
+        # Read output line by line and update progress
+        while True:
+            line = process.stdout.readline()
+            if not line and process.poll() is not None:
+                break
+            if line:
+                line = line.strip()
+                stdout_lines.append(line)
+                
+                # Handle different types of output
+                if "[PROGRESS]" in line:
+                    try:
+                        progress = int(line.split()[1])
+                        dialog = QtWidgets.QApplication.instance().activeWindow()
+                        if hasattr(dialog, 'progress_bar'):
+                            dialog.progress_bar.setValue(progress)
+                            dialog.progress_bar.setFormat(line.split("] ", 1)[1])
+                            QtWidgets.QApplication.processEvents()
+                    except ValueError:
+                        pass
+                elif "[INFO]" in line:
+                    print(line.split("] ", 1)[1])
+                elif "[ERROR]" in line:
+                    print(f"Error: {line.split('] ', 1)[1]}")
+
+        # Get any remaining output
+        remaining_stdout, remaining_stderr = process.communicate()
+        stdout_lines.extend(remaining_stdout.splitlines())
+        stderr_lines.extend(remaining_stderr.splitlines())
+
+        if process.returncode != 0:
+            error_msg = "Process failed:\n"
+            error_msg += "\n".join(line for line in stderr_lines if line.strip())
+            raise Exception(error_msg)
+
+    finally:
+        if 'process' in locals():
+            process.stdout.close()
+            process.stderr.close()
+            process.terminate()
+
+    return True
