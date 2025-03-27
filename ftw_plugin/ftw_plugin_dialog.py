@@ -189,10 +189,12 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
         # Get all layers from the project
         layers = QgsProject.instance().mapLayers().values()
         
-        # Filter and add only raster layers to the combo box
+        # Filter and add only 8-band raster layers to the combo box
         for layer in layers:
             if isinstance(layer, QgsRasterLayer):
-                self.raster_name.addItem(layer.name(), layer.id())
+                # Check if the raster has 8 bands
+                if layer.bandCount() == 8:
+                    self.raster_name.addItem(layer.name(), layer.id())
 
     def browse_raster(self):
         """Open file dialog to select a raster file and add it to QGIS."""
@@ -212,6 +214,16 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
             # Create and add the raster layer to QGIS
             raster_layer = QgsRasterLayer(raster_path, layer_name)
             if raster_layer.isValid():
+                # Check if the raster has 8 bands
+                if raster_layer.bandCount() != 8:
+                    QtWidgets.QMessageBox.critical(
+                        self,
+                        "Error",
+                        f"Invalid raster: Expected 8 bands, found {raster_layer.bandCount()} bands.\n"
+                        f"Please select a valid 8-band raster."
+                    )
+                    return
+                
                 QgsProject.instance().addMapLayer(raster_layer)
                 
                 # Update the combo box and select the new layer
@@ -627,8 +639,8 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
     def run_process(self):
         """Handle the run button click event."""
         # Collect and validate all inputs
-        inputs = self.collect_inputs()
-        if inputs is None:
+        self.inputs = self.collect_inputs()
+        if self.inputs is None:
             return
             
         try:
@@ -640,37 +652,35 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
             self.progress_bar.setFormat("Setting up a conda environment...")
             QtWidgets.QApplication.processEvents()
             
-            # Set up the environment with the saved environment name
-            setup_ftw_env(inputs['conda_path'], inputs['env_name'])
+            # Run environment setup in a separate thread
+            from PyQt5.QtCore import QThread, pyqtSignal
             
-            # Update progress for model processing
-            self.progress_bar.setFormat("Running inference...")
-            # self.progress_bar.setValue(50)  # Set to 50% after environment setup
-            QtWidgets.QApplication.processEvents()
+            class SetupThread(QThread):
+                finished = pyqtSignal(bool, str)  # success, message
+                progress = pyqtSignal(int, str)   # value, message
+                
+                def __init__(self, conda_path, env_name):
+                    super().__init__()
+                    self.conda_path = conda_path
+                    self.env_name = env_name
+                
+                def run(self):
+                    try:
+                        # Create a callback function to emit progress updates
+                        def progress_callback(value, message):
+                            self.progress.emit(value, message)
+                        
+                        # Run the setup process
+                        setup_ftw_env(self.conda_path, self.env_name, progress_callback)
+                        self.finished.emit(True, "Environment setup completed successfully!")
+                    except Exception as e:
+                        self.finished.emit(False, str(e))
             
-            # TODO: Add actual model processing here
-            # This is where we'll add the code to:
-            # 1. Load the model
-            # 2. Process the raster
-            # 3. Handle polygonization if enabled
-            # 4. Save the output
-            run_inference(inputs)
-            
-            # For now, just simulate progress for the model processing part
-            for i in range(51, 101):
-                if self.cancel_button.isChecked():
-                    break
-                self.progress_bar.setValue(i)
-                QtWidgets.QApplication.processEvents()
-            
-            # Disable the cancel button
-            self.cancel_button.setEnabled(False)
-            
-            QtWidgets.QMessageBox.information(
-                self,
-                "Success",
-                "Processing completed successfully!"
-            )
+            # Create and start the setup thread
+            self.setup_thread = SetupThread(self.inputs['conda_path'], self.inputs['env_name'])
+            self.setup_thread.finished.connect(self.handle_setup_finished)
+            self.setup_thread.progress.connect(self.update_progress)
+            self.setup_thread.start()
             
         except Exception as e:
             # Disable the cancel button
@@ -680,9 +690,94 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
                 "Error",
                 f"An error occurred during processing: {str(e)}"
             )
+    
+    def handle_setup_finished(self, success, message):
+        """Handle the completion of the environment setup."""
+        if success:
+            # Start the inference process
+            self.start_inference()
+        else:
+            # Disable the cancel button and show error
+            self.cancel_button.setEnabled(False)
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Error",
+                message
+            )
+    
+    def start_inference(self):
+        """Start the inference process after successful environment setup."""
+        # Run inference in a separate thread
+        from PyQt5.QtCore import QThread, pyqtSignal
+        
+        class InferenceThread(QThread):
+            finished = pyqtSignal(bool, str)  # success, message
+            progress = pyqtSignal(int, str)   # value, message
+            
+            def __init__(self, inputs):
+                super().__init__()
+                self.inputs = inputs
+            
+            def run(self):
+                try:
+                    # Create a callback function to emit progress updates
+                    def progress_callback(value, message):
+                        self.progress.emit(value, message)
+                    
+                    # Pass the callback to run_inference
+                    run_inference(self.inputs, progress_callback)
+                    self.finished.emit(True, "Processing completed successfully!")
+                except Exception as e:
+                    self.finished.emit(False, str(e))
+        
+        # Create and start the inference thread
+        self.inference_thread = InferenceThread(self.inputs)
+        self.inference_thread.finished.connect(self.handle_inference_finished)
+        self.inference_thread.progress.connect(self.update_progress)
+        self.inference_thread.start()
+
+    def handle_inference_finished(self, success, message):
+        """Handle the completion of the inference process."""
+        # Disable the cancel button
+        self.cancel_button.setEnabled(False)
+        
+        if success:
+            # Add the output raster to the map
+            output_path = self.inputs['output_path']
+            if os.path.exists(output_path):
+                # Get the filename without extension as the layer name
+                layer_name = os.path.splitext(os.path.basename(output_path))[0]
+                
+                # Create and add the raster layer to QGIS
+                raster_layer = QgsRasterLayer(output_path, layer_name)
+                if raster_layer.isValid():
+                    QgsProject.instance().addMapLayer(raster_layer)
+                    message += "\nOutput raster has been added to the map."
+                else:
+                    message += "\nWarning: Could not load output raster."
+            else:
+                message += "\nWarning: Output file not found."
+            
+            QtWidgets.QMessageBox.information(
+                self,
+                "Success",
+                message
+            )
+        else:
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Error",
+                message
+            )
+    
+    def update_progress(self, value, message):
+        """Update the progress bar with a new value and message."""
+        self.progress_bar.setValue(value)
+        self.progress_bar.setFormat(message)
+        QtWidgets.QApplication.processEvents()
 
 
-def setup_ftw_env(conda_setup, env_name):
+def setup_ftw_env(conda_setup, env_name, progress_callback=None):
     """Set up the FTW environment with progress updates."""
     os.environ.pop("PYTHONHOME", None)
     os.environ.pop("PYTHONPATH", None)
@@ -725,41 +820,52 @@ def setup_ftw_env(conda_setup, env_name):
             universal_newlines=True
         )
 
+        # Store output for error reporting
+        stdout_lines = []
+        stderr_lines = []
+
         # Read output line by line and update progress
         while True:
             line = process.stdout.readline()
             if not line and process.poll() is not None:
                 break
             if line:
+                line = line.strip()
+                stdout_lines.append(line)
+                
+                # Handle different types of output
                 if "[PROGRESS]" in line:
                     try:
-                        # Extract progress percentage from the line
                         progress = int(line.split()[1])
-                        # Update the progress bar
-                        if hasattr(QtWidgets.QApplication.instance(), 'activeWindow'):
-                            dialog = QtWidgets.QApplication.instance().activeWindow()
-                            if hasattr(dialog, 'progress_bar'):
-                                dialog.progress_bar.setValue(progress)
-                                QtWidgets.QApplication.processEvents()
-                    except:
+                        message = line.split("] ", 1)[1]
+                        if progress_callback:
+                            progress_callback(progress, message)
+                    except ValueError:
                         pass
+                elif "[INFO]" in line:
+                    print(line.split("] ", 1)[1])
+                elif "[ERROR]" in line:
+                    print(f"Error: {line.split('] ', 1)[1]}")
 
-        # Wait for the process to complete
-        process.wait()
-        
-        # Check for errors
+        # Get any remaining output
+        remaining_stdout, remaining_stderr = process.communicate()
+        stdout_lines.extend(remaining_stdout.splitlines())
+        stderr_lines.extend(remaining_stderr.splitlines())
+
         if process.returncode != 0:
-            error_output = process.stderr.read()
-            raise Exception(f"Environment setup failed: {error_output}")
-            
+            error_msg = "Environment setup failed:\n"
+            error_msg += "\n".join(line for line in stderr_lines if line.strip())
+            raise Exception(error_msg)
+
     finally:
-        # Ensure all pipes are closed
         if 'process' in locals():
             process.stdout.close()
             process.stderr.close()
             process.terminate()
 
-def run_inference(inputs):
+    return True
+
+def run_inference(inputs, progress_callback=None):
     """Run FTW inference (and optional polygonization) inside a Conda environment with progress updates."""
     os.environ.pop("PYTHONHOME", None)
     os.environ.pop("PYTHONPATH", None)
@@ -776,12 +882,12 @@ def run_inference(inputs):
     polygonize_command = ""
     if polygonize_enabled:
         polygonize_command = f"""
-        echo "[PROGRESS] 85 Running polygonization..."
+        echo "[PROGRESS] 90 Running polygonization..."
         if ! ftw inference polygonize "{output_path}" --simplify {simplify_value}; then
             echo "[ERROR] Polygonization failed"
             exit 1
         fi
-        echo "[PROGRESS] 90 Polygonization complete"
+        echo "[PROGRESS] 95 Polygonization complete"
         """
 
     bash_script = f"""
@@ -789,13 +895,15 @@ def run_inference(inputs):
     conda activate {env_name}
 
     # Run inference
-    echo "[PROGRESS] 75 Finalizing inference..."
+    echo "[PROGRESS] 45 Running inference..."
+    echo "[INFO] Using model: {model_path}"
+    echo "[INFO] Processing raster: {raster_path}"
     
     if ! ftw inference run "{raster_path}" --model "{model_path}" --out "{output_path}" --overwrite; then
         echo "[ERROR] Inference failed"
         exit 1
     fi
-    echo "[PROGRESS] 100 Inference complete"
+    echo "[PROGRESS] 85 Inference complete"
 
     # Optional polygonization
     {polygonize_command}
@@ -830,11 +938,9 @@ def run_inference(inputs):
                 if "[PROGRESS]" in line:
                     try:
                         progress = int(line.split()[1])
-                        dialog = QtWidgets.QApplication.instance().activeWindow()
-                        if hasattr(dialog, 'progress_bar'):
-                            dialog.progress_bar.setValue(progress)
-                            dialog.progress_bar.setFormat(line.split("] ", 1)[1])
-                            QtWidgets.QApplication.processEvents()
+                        message = line.split("] ", 1)[1]
+                        if progress_callback:
+                            progress_callback(progress, message)
                     except ValueError:
                         pass
                 elif "[INFO]" in line:
