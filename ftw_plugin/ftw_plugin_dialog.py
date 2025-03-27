@@ -63,17 +63,6 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
         """Constructor."""
         super(FTWDialog, self).__init__(parent)
         self.iface = iface
-        
-        # Print environment information
-        print("\n=== Environment Information ===")
-        print(f"Python executable: {sys.executable}")
-        print(f"Python version: {sys.version}")
-        print(f"Environment PATH: {os.environ.get('PATH', 'Not set')}")
-        print(f"CONDA_PREFIX: {os.environ.get('CONDA_PREFIX', 'Not set')}")
-        print(f"CONDA_DEFAULT_ENV: {os.environ.get('CONDA_DEFAULT_ENV', 'Not set')}")
-        print(f"CONDA_PYTHON_EXE: {os.environ.get('CONDA_PYTHON_EXE', 'Not set')}")
-        print("=============================\n")
-
 
         # Set up the dialog from the UI
         self.setupUi(self)
@@ -656,18 +645,16 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
             
             # Update progress for model processing
             self.progress_bar.setFormat("Running inference...")
-            self.progress_bar.setValue(50)  # Set to 50% after environment setup
+            # self.progress_bar.setValue(50)  # Set to 50% after environment setup
             QtWidgets.QApplication.processEvents()
             
             # TODO: Add actual model processing here
-            print(inputs)
             # This is where we'll add the code to:
             # 1. Load the model
             # 2. Process the raster
             # 3. Handle polygonization if enabled
             # 4. Save the output
             run_inference(inputs)
-            print("Inference completed Gedeon")
             
             # For now, just simulate progress for the model processing part
             for i in range(51, 101):
@@ -802,15 +789,13 @@ def run_inference(inputs):
     conda activate {env_name}
 
     # Run inference
-    echo "[PROGRESS] 60 Starting inference..."
-    echo "[INFO] Using model: {model_path}"
-    echo "[INFO] Processing raster: {raster_path}"
+    echo "[PROGRESS] 75 Finalizing inference..."
     
     if ! ftw inference run "{raster_path}" --model "{model_path}" --out "{output_path}" --overwrite; then
         echo "[ERROR] Inference failed"
         exit 1
     fi
-    echo "[PROGRESS] 80 Inference complete"
+    echo "[PROGRESS] 100 Inference complete"
 
     # Optional polygonization
     {polygonize_command}
