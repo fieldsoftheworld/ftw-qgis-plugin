@@ -72,8 +72,22 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
         # Connect the model path button to file dialog
         self.model_path.clicked.connect(self.browse_model)
         
+        # Connect output path button
+        self.output_path.clicked.connect(self.browse_output)
+        
         # Connect run button
         self.run_button.clicked.connect(self.run_process)
+        
+        # Connect add_map button
+        self.add_map.clicked.connect(self.add_visualizations_to_map)
+        
+        # Connect checkboxes for enabling/disabling the add_map button
+        self.win_a.stateChanged.connect(self.update_add_map_button_state)
+        self.win_b.stateChanged.connect(self.update_add_map_button_state)
+        self.nir.stateChanged.connect(self.update_add_map_button_state)
+        
+        # Connect polygonize flag checkbox
+        self.polygonize_flag.stateChanged.connect(self.update_polygonize_options)
         
         # Setup model combo box
         self.setup_model_combo()
@@ -246,8 +260,48 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
                     f"Failed to copy model to plugin directory: {str(e)}"
                 )
 
-    def run_process(self):
-        """Handle the run button click event."""
+    def browse_output(self):
+        """Open file dialog to select output location and filename."""
+        # Get initial directory from current output path if it exists
+        initial_dir = os.path.dirname(self.output_name.text()) if self.output_name.text() else ""
+        
+        # Open file dialog for saving
+        file_dialog = QtWidgets.QFileDialog()
+        output_path, _ = file_dialog.getSaveFileName(
+            self,
+            "Select Output Location",
+            initial_dir,
+            "GeoTIFF Files (*.tif);;All Files (*.*)"
+        )
+        
+        if output_path:
+            # Ensure the file has .tif extension
+            if not output_path.lower().endswith('.tif'):
+                output_path += '.tif'
+            
+            # Update the output name field
+            self.output_name.setText(output_path)
+    
+    def update_add_map_button_state(self):
+        """Enable or disable the add_map button based on checkbox states."""
+        # Enable the button if any visualization option is checked
+        self.add_map.setEnabled(
+            self.win_a.isChecked() or self.win_b.isChecked() or self.nir.isChecked()
+        )
+    
+    def update_polygonize_options(self):
+        """Handle polygonize flag checkbox state change."""
+        # Enable/disable simplify polygon spinbox based on checkbox state
+        self.simplify_polygon.setEnabled(self.polygonize_flag.isChecked())
+        
+        # Get the current value if enabled
+        if self.polygonize_flag.isChecked():
+            self.simplify_value = self.simplify_polygon.value()
+        else:
+            self.simplify_value = None
+    
+    def add_visualizations_to_map(self):
+        """Add selected visualizations to the map."""
         # Get the selected raster layer
         selected_layer_id = self.raster_name.currentData()
         if not selected_layer_id:
@@ -266,26 +320,13 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
                 "Selected layer is not valid."
             )
             return
-        
-        # Handle model download if needed
-        selected_model = self.model_name.currentText()
-        model_path = self.ensure_model_downloaded(selected_model)
-        if not model_path:
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Warning",
-                "Failed to get model checkpoint."
-            )
-            return
             
-        # Handle band visualization based on checkbox states
+        # Create visualizations based on checkbox states
         self.visualize_bands(selected_layer)
-        
-        # TODO: Add other processing steps here
         
     def visualize_bands(self, source_layer):
         """Create band visualizations based on checkbox states."""
-        if not (self.win_a.isChecked() or self.win_b.isChecked()):
+        if not (self.win_a.isChecked() or self.win_b.isChecked() or self.nir.isChecked()):
             return
             
         source_path = source_layer.source()
@@ -324,5 +365,165 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
                     f"Failed to create Window B visualization for {source_layer.name()}"
                 )
         
+        # Handle NIR false color visualizations
+        if self.nir.isChecked():
+            # NIR false color for Window A (Bands 4,1,2 for NIR,R,G)
+            layer_name = f"{source_layer.name()}_NIR_A_{str(uuid.uuid4())[:8]}"
+            nir_a_layer = QgsRasterLayer(source_path, layer_name)
+            if nir_a_layer.isValid():
+                # Set band rendering for R,G,B as 4,1,2 (NIR, Red, Green)
+                nir_a_layer.renderer().setRedBand(4)
+                nir_a_layer.renderer().setGreenBand(1)
+                nir_a_layer.renderer().setBlueBand(2)
+                QgsProject.instance().addMapLayer(nir_a_layer)
+            else:
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Warning",
+                    f"Failed to create NIR Window A visualization for {source_layer.name()}"
+                )
+                
+            # NIR false color for Window B (Bands 8,5,6 for NIR,R,G)
+            layer_name = f"{source_layer.name()}_NIR_B_{str(uuid.uuid4())[:8]}"
+            nir_b_layer = QgsRasterLayer(source_path, layer_name)
+            if nir_b_layer.isValid():
+                # Set band rendering for R,G,B as 8,5,6 (NIR, Red, Green)
+                nir_b_layer.renderer().setRedBand(8)
+                nir_b_layer.renderer().setGreenBand(5)
+                nir_b_layer.renderer().setBlueBand(6)
+                QgsProject.instance().addMapLayer(nir_b_layer)
+            else:
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Warning",
+                    f"Failed to create NIR Window B visualization for {source_layer.name()}"
+                )
+        
         # Refresh the map canvas
         iface.mapCanvas().refresh()
+        
+    def collect_inputs(self):
+        """Collect and validate all necessary inputs for model processing."""
+        inputs = {}
+        
+        # Get raster layer
+        selected_layer_id = self.raster_name.currentData()
+        if not selected_layer_id:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Warning",
+                "Please select a raster layer first."
+            )
+            return None
+            
+        selected_layer = QgsProject.instance().mapLayer(selected_layer_id)
+        if not selected_layer or not selected_layer.isValid():
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Warning",
+                "Selected layer is not valid."
+            )
+            return None
+            
+        # Get the actual raster file path
+        raster_path = selected_layer.source()
+        if not raster_path or not os.path.exists(raster_path):
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Warning",
+                "Could not find the raster file path."
+            )
+            return None
+            
+        inputs['raster_path'] = raster_path
+        
+        # Get model path
+        selected_model = self.model_name.currentText()
+        model_path = self.ensure_model_downloaded(selected_model)
+        if not model_path:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Warning",
+                "Failed to get model checkpoint."
+            )
+            return None
+        inputs['model_path'] = model_path
+        
+        # Get output path
+        output_path = self.output_name.text()
+        if not output_path:
+            import tempfile
+            output_path = os.path.join(tempfile.gettempdir(), "ftw_output.tif")
+            self.output_name.setText(output_path)
+        
+        # Ensure output directory exists
+        output_dir = os.path.dirname(output_path)
+        if output_dir and not os.path.exists(output_dir):
+            try:
+                os.makedirs(output_dir)
+            except Exception as e:
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Warning",
+                    f"Failed to create output directory: {str(e)}"
+                )
+                return None
+        inputs['output_path'] = output_path
+        
+        # Get polygonize options
+        inputs['polygonize_enabled'] = self.polygonize_flag.isChecked()
+        if inputs['polygonize_enabled']:
+            inputs['simplify_value'] = self.simplify_polygon.value()
+        
+        # Get model type (2 or 3 classes)
+        inputs['model_type'] = "3" if selected_model == "FTW 3 Classes" else "2"
+        
+        return inputs
+    
+    def run_process(self):
+        """Handle the run button click event."""
+        # Collect and validate all inputs
+        inputs = self.collect_inputs()
+        print(inputs)
+        if inputs is None:
+            return
+            
+        try:
+            # Show progress dialog
+            progress = QtWidgets.QProgressDialog(
+                "Processing...",
+                "Cancel",
+                0,
+                100,
+                self
+            )
+            progress.setWindowModality(Qt.WindowModal)
+            progress.setAutoClose(True)
+            progress.show()
+            
+            # TODO: Add actual model processing here
+            # This is where we'll add the code to:
+            # 1. Load the model
+            # 2. Process the raster
+            # 3. Handle polygonization if enabled
+            # 4. Save the output
+            
+            # For now, just simulate progress
+            for i in range(101):
+                if progress.wasCanceled():
+                    break
+                progress.setValue(i)
+                QtWidgets.QApplication.processEvents()
+            
+            QtWidgets.QMessageBox.information(
+                self,
+                "Success",
+                "Processing completed successfully!"
+            )
+            
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Error",
+                f"An error occurred during processing: {str(e)}"
+            )
