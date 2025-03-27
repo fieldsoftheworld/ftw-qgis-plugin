@@ -182,19 +182,17 @@ class FTW:
 
     def run(self):
         """Run method that performs all the real work"""
-
-        # Create the dialog with elements (after translation) and keep reference
-        # Only create GUI ONCE in callback, so that it will only load when the plugin is started
-        if self.first_start == True:
-            self.first_start = False
-            self.dlg = FTWDialog()
-
+        # Create the dialog with elements defined in the .ui file
+        self.dlg = FTWDialog(self.iface)
+        
         # show the dialog
         self.dlg.show()
+        
         # Run the dialog event loop
         result = self.dlg.exec_()
+        
         # See if OK was pressed
         if result:
             # Do something useful here - delete the line containing pass and
-            # substitute with your code.
+            # write your code here.
             pass
