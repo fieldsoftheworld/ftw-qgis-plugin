@@ -1,32 +1,49 @@
-Plugin Builder Results
+# Fields of The World (FTW) QGIS Plugin
 
-Your plugin FTW was created in:
-    /Users/gmuhawen/Gedeon/RESEARCH/FTW/ftw-qgis-plugin/ftw_plugin
+**Version:** 0.1  
+**Author:** Fields of The World Team  
+**QGIS Minimum Version:** 3.0
 
-Your QGIS plugin directory is located at:
-    /Users/gmuhawen/Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins
+---
 
-What's Next:
+### Description
 
-  * Copy the entire directory containing your new plugin to the QGIS plugin
-    directory
+**Fields of The World** is a QGIS plugin that allows users to harness the power of [FTW AI/ML models](https://fieldsofthe.world) to generate precise **field boundaries**. This tool simplifies the process of selecting an area of interest, running inference to generate raster outputs, and converting them into polygonized vector data in various formats.
 
-  * Compile the resources file using pyrcc5
+---
 
-  * Run the tests (``make test``)
+### Features
 
-  * Test the plugin by enabling it in the QGIS plugin manager
+- Select FTW model ready raste.
+- Run model inference to predict field boundaries.
+- Convert raster predictions into polygons.
+- Export results 
 
-  * Customize it by editing the implementation file: ``ftw_plugin.py``
+---
+### UI Layout
+![UI Layout](./images/ui.png)
 
-  * Create your own custom icon, replacing the default icon.png
 
-  * Modify your user interface by opening FTW_dialog_base.ui in Qt Designer
+### Installation
 
-  * You can use the Makefile to compile your Ui and resource files when
-    you make changes. This requires GNU make (gmake)
+TBA
+---
 
-For more information, see the PyQGIS Developer Cookbook at:
-http://www.qgis.org/pyqgis-cookbook/index.html
+### Status
 
-(C) 2011-2018 GeoApt LLC - geoapt.com
+⚠️ **This plugin is currently experimental.** Feedback and contributions are welcome!
+
+---
+
+### Bug Reports & Contributions
+
+- Report issues: [Issue Tracker](http://github.com/fieldsoftheworld/ftw-qgis-plugin/issues)
+- Source code: [GitHub Repository](http://github.com/fieldsoftheworld/ftw-qgis-plugin)
+
+
+---
+
+### 📄 License
+
+This project is licensed under the terms described in the repository. See the [LICENSE](http://github.com/fieldsoftheworld/ftw-qgis-plugin/blob/main/LICENSE) file for more information.
+
