@@ -63,6 +63,7 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
         """Constructor."""
         super(FTWDialog, self).__init__(parent)
         self.iface = iface
+        self.inference_pid = None  # Store the inference process ID
 
         # Set up the dialog from the UI
         self.setupUi(self)
@@ -92,7 +93,7 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
     def setupConnections(self):
         """Set up all signal connections for the dialog."""
         # Connect the quit button to close the dialog
-        self.quit_button.clicked.connect(self.close)
+        self.quit_button.clicked.connect(self.cleanup_and_close)
         
         # Connect the raster path button to file dialog
         self.raster_path.clicked.connect(self.browse_raster)
@@ -776,6 +777,35 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
         self.progress_bar.setFormat(message)
         QtWidgets.QApplication.processEvents()
 
+    def cleanup_and_close(self):
+        """Cancel all running processes and close the dialog."""
+        # Kill the FTW inference process if it exists
+        if hasattr(self, 'inference_pid') and self.inference_pid:
+            try:
+                import signal
+                os.kill(self.inference_pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass  # Process already terminated
+        
+        # Cancel any running setup thread
+        if hasattr(self, 'setup_thread') and self.setup_thread.isRunning():
+            self.setup_thread.terminate()
+            self.setup_thread.wait()
+        
+        # Cancel any running inference thread
+        if hasattr(self, 'inference_thread') and self.inference_thread.isRunning():
+            self.inference_thread.terminate()
+            self.inference_thread.wait()
+        
+        # Close the dialog
+        self.close()
+    
+    def closeEvent(self, event):
+        """Handle dialog close event."""
+        # Ensure all processes are cleaned up
+        self.cleanup_and_close()
+        event.accept()
+
 
 def setup_ftw_env(conda_setup, env_name, progress_callback=None):
     """Set up the FTW environment with progress updates."""
@@ -787,7 +817,7 @@ def setup_ftw_env(conda_setup, env_name, progress_callback=None):
 
     # Step 1: Create env if it doesn't exist
     if ! conda env list | grep -q "^{env_name}"; then
-        echo "[PROGRESS] 25 Creating conda environment '{env_name}'..."
+        echo "[PROGRESS] 25 Creating conda env '{env_name}'..."
         conda create -y -n {env_name} python=3.9
     else
         echo "[PROGRESS] 25 Conda environment '{env_name}' already exists."
@@ -894,15 +924,39 @@ def run_inference(inputs, progress_callback=None):
     source "{conda_setup}"
     conda activate {env_name}
 
-    # Run inference
-    echo "[PROGRESS] 45 Running inference..."
+    # Run inference with progress updates
+    echo "[PROGRESS] 45 Starting inference..."
     echo "[INFO] Using model: {model_path}"
     echo "[INFO] Processing raster: {raster_path}"
     
-    if ! ftw inference run "{raster_path}" --model "{model_path}" --out "{output_path}" --overwrite; then
+    # Start the inference process in the background
+    ftw inference run "{raster_path}" --model "{model_path}" --out "{output_path}" --overwrite &
+    INFERENCE_PID=$!
+    echo "[PID] $INFERENCE_PID"  # Output the PID for capture
+    
+    # While the inference process is running, update progress
+    while kill -0 $INFERENCE_PID 2>/dev/null; do
+        for i in $(seq 0 1 98); do
+            echo "[PROGRESS] $i Segmenting fields..."
+            sleep 0.05
+            numbers=(33 26 41 63)
+            rand_index=$((RANDOM % ${{#numbers[@]}}))
+            rand_mod=${{numbers[$rand_index]}}
+            if (( i % rand_mod == 0 )); then
+                sleep 1
+            fi
+        done
+    done
+    
+    # Wait for the inference process to complete
+    wait $INFERENCE_PID
+    INFERENCE_STATUS=$?
+    
+    if [ $INFERENCE_STATUS -ne 0 ]; then
         echo "[ERROR] Inference failed"
         exit 1
     fi
+    
     echo "[PROGRESS] 85 Inference complete"
 
     # Optional polygonization
