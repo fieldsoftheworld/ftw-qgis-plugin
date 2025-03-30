@@ -28,6 +28,31 @@
    <property name="frameShadow">
     <enum>QFrame::Raised</enum>
    </property>
+   <widget class="QToolButton" name="roi_extraction_button">
+    <property name="geometry">
+     <rect>
+      <x>300</x>
+      <y>30</y>
+      <width>26</width>
+      <height>22</height>
+     </rect>
+    </property>
+    <property name="mouseTracking">
+     <bool>false</bool>
+    </property>
+    <property name="tabletTracking">
+     <bool>false</bool>
+    </property>
+    <property name="acceptDrops">
+     <bool>false</bool>
+    </property>
+    <property name="autoFillBackground">
+     <bool>false</bool>
+    </property>
+    <property name="text">
+     <string>...</string>
+    </property>
+   </widget>
   </widget>
   <widget class="QFrame" name="frame_2">
    <property name="geometry">
@@ -286,45 +311,40 @@
     </item>
    </layout>
   </widget>
+  <widget class="QLineEdit" name="roi_bbox">
+   <property name="geometry">
+    <rect>
+     <x>55</x>
+     <y>41</y>
+     <width>250</width>
+     <height>21</height>
+    </rect>
+   </property>
+   <property name="minimumSize">
+    <size>
+     <width>250</width>
+     <height>0</height>
+    </size>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+   <property name="placeholderText">
+    <string>[Top left (lon,lat) Bottom right (lon,lat)]</string>
+   </property>
+  </widget>
   <widget class="QWidget" name="">
    <property name="geometry">
     <rect>
-     <x>54</x>
-     <y>38</y>
-     <width>292</width>
-     <height>28</height>
+     <x>0</x>
+     <y>0</y>
+     <width>2</width>
+     <height>2</height>
     </rect>
    </property>
-   <layout class="QHBoxLayout" name="horizontalLayout_2">
-    <item>
-     <widget class="QLineEdit" name="roi_bbox">
-      <property name="minimumSize">
-       <size>
-        <width>250</width>
-        <height>0</height>
-       </size>
-      </property>
-      <property name="text">
-       <string/>
-      </property>
-      <property name="placeholderText">
-       <string>[Top left (lon,lat) Bottom right (lon,lat)]</string>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <widget class="QgsPropertyOverrideButton" name="roi_extraction_button"/>
-    </item>
-   </layout>
+   <layout class="QHBoxLayout" name="horizontalLayout_2"/>
   </widget>
  </widget>
- <customwidgets>
-  <customwidget>
-   <class>QgsPropertyOverrideButton</class>
-   <extends>QToolButton</extends>
-   <header>qgspropertyoverridebutton.h</header>
-  </customwidget>
- </customwidgets>
  <resources/>
  <connections/>
 </ui>
