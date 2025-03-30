@@ -91,7 +91,7 @@
    <property name="frameShadow">
     <enum>QFrame::Raised</enum>
    </property>
-   <widget class="QWidget" name="">
+   <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
       <x>11</x>
@@ -124,8 +124,14 @@
         <string>...</string>
        </property>
        <property name="icon">
-        <iconset resource="resources.qrc">
+        <iconset>
          <normaloff>:/plugins/ftw_plugin/download_2.png</normaloff>:/plugins/ftw_plugin/download_2.png</iconset>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>16</width>
+         <height>12</height>
+        </size>
        </property>
       </widget>
      </item>
