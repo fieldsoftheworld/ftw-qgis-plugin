@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Dialog</class>
+ <widget class="QDialog" name="Dialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>394</width>
+    <height>365</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Dialog</string>
+  </property>
+  <widget class="QFrame" name="frame">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>9</y>
+     <width>341</width>
+     <height>91</height>
+    </rect>
+   </property>
+   <property name="frameShape">
+    <enum>QFrame::StyledPanel</enum>
+   </property>
+   <property name="frameShadow">
+    <enum>QFrame::Raised</enum>
+   </property>
+  </widget>
+  <widget class="QFrame" name="frame_2">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>119</y>
+     <width>341</width>
+     <height>71</height>
+    </rect>
+   </property>
+   <property name="frameShape">
+    <enum>QFrame::StyledPanel</enum>
+   </property>
+   <property name="frameShadow">
+    <enum>QFrame::Raised</enum>
+   </property>
+  </widget>
+  <widget class="QFrame" name="frame_3">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>209</y>
+     <width>341</width>
+     <height>61</height>
+    </rect>
+   </property>
+   <property name="frameShape">
+    <enum>QFrame::StyledPanel</enum>
+   </property>
+   <property name="frameShadow">
+    <enum>QFrame::Raised</enum>
+   </property>
+  </widget>
+  <widget class="QLabel" name="label">
+   <property name="geometry">
+    <rect>
+     <x>30</x>
+     <y>15</y>
+     <width>301</width>
+     <height>20</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Select area of interest and agricultural season</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="label_5">
+   <property name="geometry">
+    <rect>
+     <x>30</x>
+     <y>215</y>
+     <width>111</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Output file path</string>
+   </property>
+  </widget>
+  <widget class="QWidget" name="layoutWidget_2">
+   <property name="geometry">
+    <rect>
+     <x>51</x>
+     <y>147</y>
+     <width>298</width>
+     <height>34</height>
+    </rect>
+   </property>
+   <layout class="QHBoxLayout" name="horizontalLayout_3">
+    <item>
+     <widget class="QLabel" name="label_2">
+      <property name="text">
+       <string>sos</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QDateEdit" name="sos_date">
+      <property name="minimumDate">
+       <date>
+        <year>2015</year>
+        <month>1</month>
+        <day>1</day>
+       </date>
+      </property>
+      <property name="displayFormat">
+       <string notr="true">M/d/yy</string>
+      </property>
+      <property name="calendarPopup">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <spacer name="horizontalSpacer">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+      <property name="sizeHint" stdset="0">
+       <size>
+        <width>18</width>
+        <height>20</height>
+       </size>
+      </property>
+     </spacer>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_3">
+      <property name="text">
+       <string>eos</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QDateEdit" name="eos_date">
+      <property name="minimumDate">
+       <date>
+        <year>2015</year>
+        <month>1</month>
+        <day>1</day>
+       </date>
+      </property>
+      <property name="displayFormat">
+       <string notr="true">M/d/yy</string>
+      </property>
+      <property name="calendarPopup">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QLabel" name="label_4">
+   <property name="geometry">
+    <rect>
+     <x>30</x>
+     <y>125</y>
+     <width>301</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Season start and end dates (Auto extracted)</string>
+   </property>
+   <property name="openExternalLinks">
+    <bool>false</bool>
+   </property>
+  </widget>
+  <widget class="QProgressBar" name="progressBar">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>279</y>
+     <width>341</width>
+     <height>23</height>
+    </rect>
+   </property>
+   <property name="value">
+    <number>0</number>
+   </property>
+   <property name="format">
+    <string>%p%</string>
+   </property>
+  </widget>
+  <widget class="QWidget" name="layoutWidget_3">
+   <property name="geometry">
+    <rect>
+     <x>50</x>
+     <y>237</y>
+     <width>288</width>
+     <height>24</height>
+    </rect>
+   </property>
+   <layout class="QHBoxLayout" name="horizontalLayout_4">
+    <item>
+     <widget class="QLineEdit" name="download_tif_name">
+      <property name="minimumSize">
+       <size>
+        <width>250</width>
+        <height>0</height>
+       </size>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="placeholderText">
+       <string>[Save to temporally file]</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QToolButton" name="download_tif_path">
+      <property name="text">
+       <string>...</string>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWidget" name="">
+   <property name="geometry">
+    <rect>
+     <x>180</x>
+     <y>320</y>
+     <width>186</width>
+     <height>32</height>
+    </rect>
+   </property>
+   <layout class="QHBoxLayout" name="horizontalLayout_5">
+    <item>
+     <widget class="QPushButton" name="download_button">
+      <property name="text">
+       <string>Download</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QPushButton" name="download_ui_cancel">
+      <property name="text">
+       <string>Cancel</string>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWidget" name="">
+   <property name="geometry">
+    <rect>
+     <x>50</x>
+     <y>67</y>
+     <width>298</width>
+     <height>20</height>
+    </rect>
+   </property>
+   <layout class="QHBoxLayout" name="horizontalLayout">
+    <item>
+     <widget class="QRadioButton" name="winter_crops">
+      <property name="text">
+       <string>Winter crops</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QRadioButton" name="summer_crops">
+      <property name="text">
+       <string>Summer crops</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QRadioButton" name="other_crops">
+      <property name="text">
+       <string>Other</string>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWidget" name="">
+   <property name="geometry">
+    <rect>
+     <x>54</x>
+     <y>38</y>
+     <width>292</width>
+     <height>28</height>
+    </rect>
+   </property>
+   <layout class="QHBoxLayout" name="horizontalLayout_2">
+    <item>
+     <widget class="QLineEdit" name="roi_bbox">
+      <property name="minimumSize">
+       <size>
+        <width>250</width>
+        <height>0</height>
+       </size>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+      <property name="placeholderText">
+       <string>[Top left (lon,lat) Bottom right (lon,lat)]</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QgsPropertyOverrideButton" name="roi_extraction_button"/>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>QgsPropertyOverrideButton</class>
+   <extends>QToolButton</extends>
+   <header>qgspropertyoverridebutton.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

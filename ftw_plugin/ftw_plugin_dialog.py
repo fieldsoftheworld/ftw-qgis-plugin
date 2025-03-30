@@ -117,6 +117,9 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
         
         # Connect polygonize flag checkbox
         self.polygonize_flag.stateChanged.connect(self.update_polygonize_options)
+        
+        # Connect download button
+        self.toolButton.clicked.connect(self.show_download_dialog)
     
     def setup_model_combo(self):
         """Setup the model selection combo box."""
@@ -805,6 +808,16 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
         # Ensure all processes are cleaned up
         self.cleanup_and_close()
         event.accept()
+
+    def show_download_dialog(self):
+        """Show the download image dialog."""
+        from .download_image_dialog import DownloadImageDialog
+        dialog = DownloadImageDialog(self)
+        if dialog.exec_() == QtWidgets.QDialog.Accepted:
+            values = dialog.get_values()
+            # Here you can handle the values returned from the dialog
+            print("Download values:", values)
+            # TODO: Implement the actual download functionality
 
 
 def setup_ftw_env(conda_setup, env_name, progress_callback=None):
