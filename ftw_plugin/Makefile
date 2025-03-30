@@ -48,7 +48,7 @@ PY_FILES = \
 
 UI_FILES = ftw_plugin_dialog_base.ui
 
-EXTRAS = metadata.txt icon.png
+EXTRAS = metadata.txt icon.png download_2.png
 
 EXTRA_DIRS =
 
