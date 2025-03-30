@@ -23,14 +23,16 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
         # Create menu for ROI extraction button
         self.roi_menu = QtWidgets.QMenu(self)
         self.set_canvas_extent_action = self.roi_menu.addAction("Set to current map canvas extent")
-        self.calculate_from_layer_action = self.roi_menu.addAction("Calculate from layer")
+        
+        # Create submenu for layer selection
+        self.layer_menu = QtWidgets.QMenu("Calculate from layer", self)
+        self.roi_menu.addMenu(self.layer_menu)
         
         # Connect the property override button
         self.roi_extraction_button.clicked.connect(self.show_roi_menu)
         
         # Connect the menu actions
         self.set_canvas_extent_action.triggered.connect(self.set_canvas_extent)
-        self.calculate_from_layer_action.triggered.connect(self.calculate_from_layer)
         
         # Connect the download and cancel buttons
         self.download_button.clicked.connect(self.accept)
@@ -41,6 +43,20 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
     
     def show_roi_menu(self):
         """Show the ROI extraction menu."""
+        # Clear previous layer menu items
+        self.layer_menu.clear()
+        
+        # Get all layers from the project
+        layers = QgsProject.instance().mapLayers()
+        
+        # Add layers to the submenu
+        for layer_id, layer in layers.items():
+            if layer.type() == QgsMapLayer.VectorLayer or layer.type() == QgsMapLayer.RasterLayer:
+                action = self.layer_menu.addAction(layer.name())
+                action.setData(layer_id)
+                action.triggered.connect(lambda checked, lid=layer_id: self.calculate_from_layer(lid))
+        
+        # Show the menu
         self.roi_menu.exec_(self.roi_extraction_button.mapToGlobal(
             self.roi_extraction_button.rect().bottomLeft()))
     
@@ -54,42 +70,16 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
         coords = f"{extent.xMinimum():.2f}, {extent.yMaximum():.2f}; {extent.xMaximum():.2f}, {extent.yMinimum():.2f} [{crs.authid()}]"
         self.roi_bbox.setText(coords)
     
-    def calculate_from_layer(self):
+    def calculate_from_layer(self, layer_id):
         """Calculate ROI from selected layer."""
-        # Get all layers from the project
-        layers = QgsProject.instance().mapLayers()
-        
-        # Create a dialog to select a layer
-        dialog = QtWidgets.QDialog(self)
-        dialog.setWindowTitle("Select Layer")
-        layout = QtWidgets.QVBoxLayout()
-        
-        combo = QtWidgets.QComboBox()
-        for layer_id, layer in layers.items():
-            if layer.type() == QgsMapLayer.VectorLayer or layer.type() == QgsMapLayer.RasterLayer:
-                combo.addItem(layer.name(), layer_id)
-        
-        layout.addWidget(combo)
-        
-        buttons = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
-        buttons.accepted.connect(dialog.accept)
-        buttons.rejected.connect(dialog.reject)
-        
-        layout.addWidget(buttons)
-        dialog.setLayout(layout)
-        
-        if dialog.exec_() == QtWidgets.QDialog.Accepted:
-            layer_id = combo.currentData()
-            layer = QgsProject.instance().mapLayer(layer_id)
+        layer = QgsProject.instance().mapLayer(layer_id)
+        if layer:
+            extent = layer.extent()
+            crs = layer.crs()
             
-            if layer:
-                extent = layer.extent()
-                crs = layer.crs()
-                
-                # Format the coordinates
-                coords = f"{extent.xMinimum():.2f}, {extent.yMaximum():.2f}; {extent.xMaximum():.2f}, {extent.yMinimum():.2f} [{crs.authid()}]"
-                self.roi_bbox.setText(coords)
+            # Format the coordinates
+            coords = f"{extent.xMinimum():.2f}, {extent.yMaximum():.2f}; {extent.xMaximum():.2f}, {extent.yMinimum():.2f} [{crs.authid()}]"
+            self.roi_bbox.setText(coords)
     
     def browse_output(self):
         """Open file dialog to select output location."""
