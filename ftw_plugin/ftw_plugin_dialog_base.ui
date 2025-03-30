@@ -123,6 +123,10 @@
        <property name="text">
         <string>...</string>
        </property>
+       <property name="icon">
+        <iconset resource="resources.qrc">
+         <normaloff>:/plugins/ftw_plugin/download_2.png</normaloff>:/plugins/ftw_plugin/download_2.png</iconset>
+       </property>
       </widget>
      </item>
     </layout>
