@@ -2,7 +2,7 @@ import os
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
 from qgis.PyQt.QtCore import QDate
-from qgis.core import QgsProject, QgsMapLayer, QgsRectangle
+from qgis.core import QgsProject, QgsMapLayer, QgsRectangle, QgsCoordinateTransform
 from qgis.gui import QgsMapCanvas
 import tempfile
 import sys
@@ -117,6 +117,45 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
             )
             self.reject()
     
+    def center_map_on_layer(self, layer):
+        """Center the map canvas on a layer, handling CRS transformations."""
+        if not layer or not layer.isValid():
+            return
+            
+        # Get the project's CRS
+        project_crs = self.parent().iface.mapCanvas().mapSettings().destinationCrs()
+        
+        # Get the layer's CRS
+        layer_crs = layer.crs()
+        
+        # If CRSs are different, transform the extent
+        if project_crs != layer_crs:
+            transform = QgsCoordinateTransform(layer_crs, project_crs, QgsProject.instance())
+            extent = transform.transformBoundingBox(layer.extent())
+        else:
+            extent = layer.extent()
+            
+        # Set the extent with a small buffer for better visualization
+        canvas = self.parent().iface.mapCanvas()
+        canvas.setExtent(extent)
+        
+        # Add a small buffer to the extent (5% of the width and height)
+        width = extent.width()
+        height = extent.height()
+        buffer_width = width * 0.05
+        buffer_height = height * 0.05
+        
+        buffered_extent = QgsRectangle(
+            extent.xMinimum() - buffer_width,
+            extent.yMinimum() - buffer_height,
+            extent.xMaximum() + buffer_width,
+            extent.yMaximum() + buffer_height
+        )
+        
+        # Set the buffered extent
+        canvas.setExtent(buffered_extent)
+        canvas.refresh()
+
     def handle_download(self):
         """Handle download button click."""
         try:
@@ -179,9 +218,8 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
             layer = QgsRasterLayer(output_file, output_filename)
             if layer.isValid():
                 QgsProject.instance().addMapLayer(layer)
-                # Zoom to the layer extent
-                self.parent().iface.mapCanvas().setExtent(layer.extent())
-                self.parent().iface.mapCanvas().refresh()
+                # Center and zoom to the layer extent with proper CRS handling
+                self.center_map_on_layer(layer)
             else:
                 QtWidgets.QMessageBox.warning(
                     self,
