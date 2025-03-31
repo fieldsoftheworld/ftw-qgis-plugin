@@ -55,6 +55,13 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
         
         # Import download utilities only after UI is set up
         self.setup_download_utils()
+        
+        # Connect to QGIS layer change signals
+        QgsProject.instance().layersAdded.connect(self.refresh_raster_list)
+        QgsProject.instance().layersRemoved.connect(self.refresh_raster_list)
+        
+        # Initial population of raster list
+        self.refresh_raster_list()
     
     def setup_download_utils(self):
         """Set up the download utilities after ensuring conda environment is activated."""
@@ -264,4 +271,19 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
             'sos_date': self.sos_date.date().toString('yyyy-MM-dd'),
             'eos_date': self.eos_date.date().toString('yyyy-MM-dd'),
             'output_path': self.download_tif_name.text()
-        } 
+        }
+    
+    def refresh_raster_list(self):
+        """Refresh the list of available raster layers in the UI."""
+        # Get all layers from the project
+        layers = QgsProject.instance().mapLayers()
+        
+        # Clear previous layer menu items
+        self.layer_menu.clear()
+        
+        # Add layers to the submenu
+        for layer_id, layer in layers.items():
+            if layer.type() == QgsMapLayer.VectorLayer or layer.type() == QgsMapLayer.RasterLayer:
+                action = self.layer_menu.addAction(layer.name())
+                action.setData(layer_id)
+                action.triggered.connect(lambda checked, lid=layer_id: self.calculate_from_layer(lid)) 

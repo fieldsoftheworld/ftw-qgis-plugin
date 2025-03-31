@@ -89,6 +89,10 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
         
         # Setup model combo box
         self.setup_model_combo()
+        
+        # Connect to QGIS layer change signals
+        QgsProject.instance().layersAdded.connect(self.populate_raster_combo)
+        QgsProject.instance().layersRemoved.connect(self.populate_raster_combo)
 
     def setupConnections(self):
         """Set up all signal connections for the dialog."""
@@ -187,6 +191,9 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def populate_raster_combo(self):
         """Populate the raster combo box with available raster layers from QGIS."""
+        # Store current selection if any
+        current_layer_id = self.raster_name.currentData()
+        
         # Clear existing items
         self.raster_name.clear()
         
@@ -199,6 +206,12 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
                 # Check if the raster has 8 bands
                 if layer.bandCount() == 8:
                     self.raster_name.addItem(layer.name(), layer.id())
+        
+        # Restore previous selection if it still exists
+        if current_layer_id:
+            index = self.raster_name.findData(current_layer_id)
+            if index >= 0:
+                self.raster_name.setCurrentIndex(index)
 
     def browse_raster(self):
         """Open file dialog to select a raster file and add it to QGIS."""
