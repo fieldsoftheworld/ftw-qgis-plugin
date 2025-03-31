@@ -167,6 +167,21 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
             self.progressBar.setValue(100)
             self.progressBar.setFormat("Download complete!")
             
+            # Add the layer to the map
+            from qgis.core import QgsRasterLayer
+            layer = QgsRasterLayer(output_file, output_filename)
+            if layer.isValid():
+                QgsProject.instance().addMapLayer(layer)
+                # Zoom to the layer extent
+                self.parent().iface.mapCanvas().setExtent(layer.extent())
+                self.parent().iface.mapCanvas().refresh()
+            else:
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Warning",
+                    "Image downloaded but could not be added to the map."
+                )
+            
             # Show success message
             QtWidgets.QMessageBox.information(
                 self,
