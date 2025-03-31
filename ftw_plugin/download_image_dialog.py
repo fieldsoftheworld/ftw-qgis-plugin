@@ -132,13 +132,16 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
             output_path = self.download_tif_name.text()
             if not output_path:
                 temp_dir = tempfile.gettempdir()
-                output_path = os.path.join(temp_dir, "ftw_output.tif")
+                output_path = os.path.join(temp_dir, "ftw_download_output.tif")
                 self.download_tif_name.setText(output_path)
             
             # Create output directory if it doesn't exist
             output_dir = os.path.dirname(output_path)
             if not output_dir:
                 output_dir = os.getcwd()
+            
+            # Get the output filename
+            output_filename = os.path.basename(output_path)
             
             # Update progress
             self.progressBar.setValue(20)
@@ -154,6 +157,7 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
                 win_b_start=win_b_start,
                 win_b_end=win_b_end,
                 output_dir=output_dir,
+                output_filename=output_filename,
                 max_cloud_cover=70,
                 patch_size=1024,
                 conda_env=self.conda_env
