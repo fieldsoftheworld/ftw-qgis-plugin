@@ -32,7 +32,7 @@ import json
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
 from qgis.PyQt.QtCore import Qt
-from qgis.core import QgsProject, QgsRasterLayer, QgsApplication
+from qgis.core import QgsProject, QgsRasterLayer, QgsApplication, QgsCoordinateTransform, QgsRectangle
 from qgis.utils import iface
 
 import subprocess
@@ -89,6 +89,10 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
         
         # Setup model combo box
         self.setup_model_combo()
+        
+        # Connect to QGIS layer change signals
+        QgsProject.instance().layersAdded.connect(self.populate_raster_combo)
+        QgsProject.instance().layersRemoved.connect(self.populate_raster_combo)
 
     def setupConnections(self):
         """Set up all signal connections for the dialog."""
@@ -187,6 +191,9 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def populate_raster_combo(self):
         """Populate the raster combo box with available raster layers from QGIS."""
+        # Store current selection if any
+        current_layer_id = self.raster_name.currentData()
+        
         # Clear existing items
         self.raster_name.clear()
         
@@ -199,6 +206,51 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
                 # Check if the raster has 8 bands
                 if layer.bandCount() == 8:
                     self.raster_name.addItem(layer.name(), layer.id())
+        
+        # Restore previous selection if it still exists
+        if current_layer_id:
+            index = self.raster_name.findData(current_layer_id)
+            if index >= 0:
+                self.raster_name.setCurrentIndex(index)
+
+    def center_map_on_layer(self, layer):
+        """Center the map canvas on a layer, handling CRS transformations."""
+        if not layer or not layer.isValid():
+            return
+            
+        # Get the project's CRS
+        project_crs = self.iface.mapCanvas().mapSettings().destinationCrs()
+        
+        # Get the layer's CRS
+        layer_crs = layer.crs()
+        
+        # If CRSs are different, transform the extent
+        if project_crs != layer_crs:
+            transform = QgsCoordinateTransform(layer_crs, project_crs, QgsProject.instance())
+            extent = transform.transformBoundingBox(layer.extent())
+        else:
+            extent = layer.extent()
+            
+        # Set the extent with a small buffer for better visualization
+        canvas = self.iface.mapCanvas()
+        canvas.setExtent(extent)
+        
+        # Add a small buffer to the extent (5% of the width and height)
+        width = extent.width()
+        height = extent.height()
+        buffer_width = width * 0.05
+        buffer_height = height * 0.05
+        
+        buffered_extent = QgsRectangle(
+            extent.xMinimum() - buffer_width,
+            extent.yMinimum() - buffer_height,
+            extent.xMaximum() + buffer_width,
+            extent.yMaximum() + buffer_height
+        )
+        
+        # Set the buffered extent
+        canvas.setExtent(buffered_extent)
+        canvas.refresh()
 
     def browse_raster(self):
         """Open file dialog to select a raster file and add it to QGIS."""
@@ -235,6 +287,9 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
                 index = self.raster_name.findData(raster_layer.id())
                 if index >= 0:
                     self.raster_name.setCurrentIndex(index)
+                
+                # Center and zoom to the layer extent with proper CRS handling
+                self.center_map_on_layer(raster_layer)
             else:
                 # Show error message if layer is invalid
                 QtWidgets.QMessageBox.critical(
@@ -756,6 +811,8 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
                 raster_layer = QgsRasterLayer(output_path, layer_name)
                 if raster_layer.isValid():
                     QgsProject.instance().addMapLayer(raster_layer)
+                    # Center and zoom to the layer extent with proper CRS handling
+                    self.center_map_on_layer(raster_layer)
                     message += "\nOutput raster has been added to the map."
                 else:
                     message += "\nWarning: Could not load output raster."

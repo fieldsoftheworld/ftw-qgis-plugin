@@ -2,7 +2,7 @@ import os
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
 from qgis.PyQt.QtCore import QDate
-from qgis.core import QgsProject, QgsMapLayer, QgsRectangle
+from qgis.core import QgsProject, QgsMapLayer, QgsRectangle, QgsCoordinateTransform
 from qgis.gui import QgsMapCanvas
 import tempfile
 import sys
@@ -55,6 +55,13 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
         
         # Import download utilities only after UI is set up
         self.setup_download_utils()
+        
+        # Connect to QGIS layer change signals
+        QgsProject.instance().layersAdded.connect(self.refresh_raster_list)
+        QgsProject.instance().layersRemoved.connect(self.refresh_raster_list)
+        
+        # Initial population of raster list
+        self.refresh_raster_list()
     
     def setup_download_utils(self):
         """Set up the download utilities after ensuring conda environment is activated."""
@@ -110,6 +117,45 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
             )
             self.reject()
     
+    def center_map_on_layer(self, layer):
+        """Center the map canvas on a layer, handling CRS transformations."""
+        if not layer or not layer.isValid():
+            return
+            
+        # Get the project's CRS
+        project_crs = self.parent().iface.mapCanvas().mapSettings().destinationCrs()
+        
+        # Get the layer's CRS
+        layer_crs = layer.crs()
+        
+        # If CRSs are different, transform the extent
+        if project_crs != layer_crs:
+            transform = QgsCoordinateTransform(layer_crs, project_crs, QgsProject.instance())
+            extent = transform.transformBoundingBox(layer.extent())
+        else:
+            extent = layer.extent()
+            
+        # Set the extent with a small buffer for better visualization
+        canvas = self.parent().iface.mapCanvas()
+        canvas.setExtent(extent)
+        
+        # Add a small buffer to the extent (5% of the width and height)
+        width = extent.width()
+        height = extent.height()
+        buffer_width = width * 0.05
+        buffer_height = height * 0.05
+        
+        buffered_extent = QgsRectangle(
+            extent.xMinimum() - buffer_width,
+            extent.yMinimum() - buffer_height,
+            extent.xMaximum() + buffer_width,
+            extent.yMaximum() + buffer_height
+        )
+        
+        # Set the buffered extent
+        canvas.setExtent(buffered_extent)
+        canvas.refresh()
+
     def handle_download(self):
         """Handle download button click."""
         try:
@@ -132,13 +178,16 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
             output_path = self.download_tif_name.text()
             if not output_path:
                 temp_dir = tempfile.gettempdir()
-                output_path = os.path.join(temp_dir, "ftw_output.tif")
+                output_path = os.path.join(temp_dir, "ftw_download_output.tif")
                 self.download_tif_name.setText(output_path)
             
             # Create output directory if it doesn't exist
             output_dir = os.path.dirname(output_path)
             if not output_dir:
                 output_dir = os.getcwd()
+            
+            # Get the output filename
+            output_filename = os.path.basename(output_path)
             
             # Update progress
             self.progressBar.setValue(20)
@@ -154,6 +203,7 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
                 win_b_start=win_b_start,
                 win_b_end=win_b_end,
                 output_dir=output_dir,
+                output_filename=output_filename,
                 max_cloud_cover=70,
                 patch_size=1024,
                 conda_env=self.conda_env
@@ -162,6 +212,20 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
             # Update progress
             self.progressBar.setValue(100)
             self.progressBar.setFormat("Download complete!")
+            
+            # Add the layer to the map
+            from qgis.core import QgsRasterLayer
+            layer = QgsRasterLayer(output_file, output_filename)
+            if layer.isValid():
+                QgsProject.instance().addMapLayer(layer)
+                # Center and zoom to the layer extent with proper CRS handling
+                self.center_map_on_layer(layer)
+            else:
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Warning",
+                    "Image downloaded but could not be added to the map."
+                )
             
             # Show success message
             QtWidgets.QMessageBox.information(
@@ -245,4 +309,19 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
             'sos_date': self.sos_date.date().toString('yyyy-MM-dd'),
             'eos_date': self.eos_date.date().toString('yyyy-MM-dd'),
             'output_path': self.download_tif_name.text()
-        } 
+        }
+    
+    def refresh_raster_list(self):
+        """Refresh the list of available raster layers in the UI."""
+        # Get all layers from the project
+        layers = QgsProject.instance().mapLayers()
+        
+        # Clear previous layer menu items
+        self.layer_menu.clear()
+        
+        # Add layers to the submenu
+        for layer_id, layer in layers.items():
+            if layer.type() == QgsMapLayer.VectorLayer or layer.type() == QgsMapLayer.RasterLayer:
+                action = self.layer_menu.addAction(layer.name())
+                action.setData(layer_id)
+                action.triggered.connect(lambda checked, lid=layer_id: self.calculate_from_layer(lid)) 

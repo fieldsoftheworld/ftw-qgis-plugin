@@ -49,7 +49,7 @@ def calculate_window_dates(sos_date, eos_date):
     
     return win_a_start, win_a_end, win_b_start, win_b_end
 
-def extract_patch(lon, lat, win_a_start, win_a_end, win_b_start, win_b_end, output_dir, max_cloud_cover=70, patch_size=1024, conda_env=None):
+def extract_patch(lon, lat, win_a_start, win_a_end, win_b_start, win_b_end, output_dir, output_filename, max_cloud_cover=70, patch_size=1024, conda_env=None):
     """Extract a patch of Sentinel-2 data using the specified parameters."""
     try:
         # Create a temporary Python script
@@ -74,7 +74,7 @@ MSPC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 COLLECTION_ID = "sentinel-2-l2a"
 BANDS_OF_INTEREST = ["B04", "B03", "B02", "B08"]
 
-def download_sentinel2(lon, lat, win_a_start, win_a_end, win_b_start, win_b_end, output_dir, max_cloud_cover=70, patch_size=1024):
+def download_sentinel2(lon, lat, win_a_start, win_a_end, win_b_start, win_b_end, output_dir, output_filename, max_cloud_cover=70, patch_size=1024):
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
     
@@ -151,7 +151,7 @@ def download_sentinel2(lon, lat, win_a_start, win_a_end, win_b_start, win_b_end,
     combined = combined.transpose("time", "band", "y", "x")
     
     # Create output filename
-    output_file = os.path.join(output_dir, f"patch_{lon:.6f}_{lat:.6f}_sample.tif")
+    output_file = os.path.join(output_dir, output_filename)
     
     # Write the output - combine both time steps into a single 8-band image
     print("Writing output")
@@ -206,8 +206,9 @@ if __name__ == "__main__":
     win_b_start = sys.argv[5]
     win_b_end = sys.argv[6]
     output_dir = sys.argv[7]
-    max_cloud_cover = int(sys.argv[8])
-    patch_size = int(sys.argv[9])
+    output_filename = sys.argv[8]
+    max_cloud_cover = int(sys.argv[9])
+    patch_size = int(sys.argv[10])
     
     # Download the patch
     output_file = download_sentinel2(
@@ -218,6 +219,7 @@ if __name__ == "__main__":
         win_b_start=win_b_start,
         win_b_end=win_b_end,
         output_dir=output_dir,
+        output_filename=output_filename,
         max_cloud_cover=max_cloud_cover,
         patch_size=patch_size,
     )
@@ -251,6 +253,7 @@ if __name__ == "__main__":
             win_b_start,
             win_b_end,
             output_dir,
+            output_filename,
             str(max_cloud_cover),
             str(patch_size)
         ]
