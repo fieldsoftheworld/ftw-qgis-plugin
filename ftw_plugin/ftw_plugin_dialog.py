@@ -207,13 +207,13 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
                     try:
                         setup_ftw_env(self.conda_path, env_name, update_progress)
                         # Create and center the success dialog
-                        success_box = QtWidgets.QMessageBox(self)
-                        success_box.setWindowTitle("Setup Complete")
-                        success_box.setText("The conda environment has been successfully set up!")
-                        success_box.setIcon(QtWidgets.QMessageBox.Information)
-                        success_box.setWindowModality(Qt.WindowModal)
-                        success_box.move(self.geometry().center() - success_box.rect().center())
-                        success_box.exec_()
+                        # success_box = QtWidgets.QMessageBox(self)
+                        # success_box.setWindowTitle("Setup Complete")
+                        # success_box.setText("The conda environment has been successfully set up!")
+                        # success_box.setIcon(QtWidgets.QMessageBox.Information)
+                        # success_box.setWindowModality(Qt.WindowModal)
+                        # success_box.move(self.geometry().center() - success_box.rect().center())
+                        # success_box.exec_()
                     except Exception as e:
                         # Create and center the error dialog
                         error_box = QtWidgets.QMessageBox(self)
