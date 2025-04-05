@@ -8,7 +8,11 @@ import tempfile
 def parse_coordinates(coord_str):
     """
     Parse coordinates string in format 'topleft lon, topleft lat; bottom right lon, bottom right lat [projection]'
-    Returns center coordinates in WGS84 (EPSG:4326)
+    Returns a tuple containing:
+    - center coordinates in WGS84 (EPSG:4326)
+    - top-left coordinates in WGS84 (EPSG:4326)
+    - bottom-right coordinates in WGS84 (EPSG:4326)
+    Each coordinate is returned as (lon, lat)
     """
     # Extract coordinates and projection
     coords_part = coord_str.split('[')[0].strip()
@@ -19,19 +23,24 @@ def parse_coordinates(coord_str):
     tl_lon, tl_lat = map(float, top_left.split(','))
     br_lon, br_lat = map(float, bottom_right.split(','))
     
-    # Calculate center
-    center_lon = (tl_lon + br_lon) / 2
-    center_lat = (tl_lat + br_lat) / 2
-    
     # If projection is not WGS84, transform coordinates
     if proj_part != 'EPSG:4326':
         source_crs = QgsCoordinateReferenceSystem(proj_part)
         dest_crs = QgsCoordinateReferenceSystem('EPSG:4326')
         transform = QgsCoordinateTransform(source_crs, dest_crs, QgsProject.instance())
-        center_point = transform.transform(center_lon, center_lat)
-        center_lon, center_lat = center_point.x(), center_point.y()
+        
+        # Transform all coordinates
+        tl_point = transform.transform(tl_lon, tl_lat)
+        br_point = transform.transform(br_lon, br_lat)
+        
+        tl_lon, tl_lat = tl_point.x(), tl_point.y()
+        br_lon, br_lat = br_point.x(), br_point.y()
     
-    return center_lon, center_lat
+    # Calculate center
+    center_lon = (tl_lon + br_lon) / 2
+    center_lat = (tl_lat + br_lat) / 2
+    
+    return (center_lon, center_lat), (tl_lon, tl_lat), (br_lon, br_lat)
 
 def calculate_window_dates(sos_date, eos_date):
     """
@@ -49,158 +58,84 @@ def calculate_window_dates(sos_date, eos_date):
     
     return win_a_start, win_a_end, win_b_start, win_b_end
 
-def extract_patch(lon, lat, win_a_start, win_a_end, win_b_start, win_b_end, output_dir, output_filename, max_cloud_cover=70, patch_size=1024, conda_env=None):
+def extract_patch(top_left, bottom_right, win_a_start, win_a_end, win_b_start, win_b_end, output_dir, output_filename, max_cloud_cover=20, conda_env=None):
     """Extract a patch of Sentinel-2 data using the specified parameters."""
     try:
         # Create a temporary Python script
         script_content = """
 import os
 import sys
-import time
-import warnings
-import numpy as np
-from datetime import datetime
-
+import subprocess
 import pystac_client
 import planetary_computer
-import stackstac
-import rioxarray
-import xarray as xr
-from tqdm.auto import tqdm
-from shapely.geometry import shape, box
 
-# Constants
 MSPC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 COLLECTION_ID = "sentinel-2-l2a"
-BANDS_OF_INTEREST = ["B04", "B03", "B02", "B08"]
 
-def download_sentinel2(lon, lat, win_a_start, win_a_end, win_b_start, win_b_end, output_dir, output_filename, max_cloud_cover=70, patch_size=1024):
-    # Create output directory if it doesn't exist
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # Initialize the STAC client
+def get_best_image_ids(top_left, bottom_right, win_a_start, win_a_end, win_b_start, win_b_end, max_cloud_cover=20):
     catalog = pystac_client.Client.open(
         MSPC_URL,
         modifier=planetary_computer.sign_inplace,
     )
-    
-    # Define the point of interest
-    area_of_interest = {"type": "Point", "coordinates": [lon, lat]}
-    
-    # Function to find best image in a date range
-    def find_best_image(start_date, end_date):
-        time_of_interest = f"{start_date}/{end_date}"
-        print(f"\\nSearching for images between {start_date} and {end_date}")
+
+    min_lon, min_lat = top_left[0], bottom_right[1]
+    max_lon, max_lat = bottom_right[0], top_left[1]
+    bbox_geom = {
+        "type": "Polygon",
+        "coordinates": [[
+            [min_lon, min_lat],
+            [min_lon, max_lat],
+            [max_lon, max_lat],
+            [max_lon, min_lat],
+            [min_lon, min_lat],
+        ]]
+    }
+
+    def find_best_image(start_date, end_date, cloud_threshold):
+        time_range = f"{start_date}/{end_date}"
+        print(f"Searching for images between {start_date} and {end_date} with cloud cover < {cloud_threshold}%")
         
         search = catalog.search(
             collections=[COLLECTION_ID],
-            intersects=area_of_interest,
-            datetime=time_of_interest,
-            query={"eo:cloud_cover": {"lt": max_cloud_cover}},
+            intersects=bbox_geom,
+            datetime=time_range,
+            query={"eo:cloud_cover": {"lt": cloud_threshold}},
         )
-        
+
         items = search.item_collection()
         if len(items) == 0:
-            print("No suitable images found in this date range")
+            print(f"No images found with cloud cover < {cloud_threshold}%")
             return None
             
-        # Find least cloudy image
-        least_cloudy_item = min(items, key=lambda item: item.properties.get("eo:cloud_cover", 100))
-        print(f"Selected image from {least_cloudy_item.datetime.date()} with {least_cloudy_item.properties.get('eo:cloud_cover', 100)}% cloud coverage")
-        return least_cloudy_item
+        best_item = min(items, key=lambda item: item.properties.get("eo:cloud_cover", 100))
+        cloud_cover = best_item.properties.get("eo:cloud_cover", 100)
+        print(f"Found image from {best_item.datetime.date()} with {cloud_cover}% cloud coverage")
+        return best_item.id
+
+    # Try different cloud cover thresholds if needed
+    cloud_thresholds = [max_cloud_cover, 50, 70, 100]
+    win_a_id = None
+    win_b_id = None
     
-    # Find best images for each window
-    win_a_item = find_best_image(win_a_start, win_a_end)
-    win_b_item = find_best_image(win_b_start, win_b_end)
-    
-    if win_a_item is None or win_b_item is None:
-        raise ValueError(f"Could not find suitable images (cloud coverage <= {max_cloud_cover}%) in the specified date ranges")
-    
-    # Process both images
-    print("Processing images")
-    tic = time.time()
-    
-    # Create stacks for both images
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        stack_a = stackstac.stack(
-            win_a_item,
-            assets=BANDS_OF_INTEREST,
-        )
-        stack_b = stackstac.stack(
-            win_b_item,
-            assets=BANDS_OF_INTEREST,
-        )
-    
-    # Get the center point of the image
-    _, _, height, width = stack_a.shape
-    center_x = width // 2
-    center_y = height // 2
-    
-    # Extract patches centered on the point
-    x_start = center_x - patch_size // 2
-    y_start = center_y - patch_size // 2
-    
-    patch_a = stack_a[0, :, y_start:y_start + patch_size, x_start:x_start + patch_size].compute()
-    patch_b = stack_b[0, :, y_start:y_start + patch_size, x_start:x_start + patch_size].compute()
-    
-    # Combine the patches and reorganize dimensions
-    combined = xr.concat([patch_a, patch_b], dim="time", coords="minimal", compat="override")
-    
-    # Reorganize dimensions to (time, band, y, x)
-    combined = combined.transpose("time", "band", "y", "x")
-    
-    # Create output filename
-    output_file = os.path.join(output_dir, output_filename)
-    
-    # Write the output - combine both time steps into a single 8-band image
-    print("Writing output")
-    
-    # Stack bands into a single dimension
-    combined = combined.stack(bands=("time", "band"))
-    combined = combined.transpose("bands", "y", "x")
-    
-    # Add band descriptions
-    band_descriptions = {
-        1: f"B04_{win_a_item.datetime.date()}",
-        2: f"B03_{win_a_item.datetime.date()}",
-        3: f"B02_{win_a_item.datetime.date()}",
-        4: f"B08_{win_a_item.datetime.date()}",
-        5: f"B04_{win_b_item.datetime.date()}",
-        6: f"B03_{win_b_item.datetime.date()}",
-        7: f"B02_{win_b_item.datetime.date()}",
-        8: f"B08_{win_b_item.datetime.date()}"
-    }
-    
-    # Write the data first
-    combined.rio.to_raster(
-        output_file,
-        driver="GTiff",
-        compress="deflate",
-        dtype="uint16",
-        tiled=True,
-        blockxsize=256,
-        blockysize=256,
-        tags={
-            "TIFFTAG_DATETIME": datetime.now().strftime("%Y:%m:%d %H:%M:%S")
-        }
-    )
-    
-    # Add band descriptions using GDAL
-    from osgeo import gdal
-    ds = gdal.Open(output_file, gdal.GA_Update)
-    for i, desc in band_descriptions.items():
-        ds.GetRasterBand(i).SetDescription(desc)
-    ds = None  # Close the dataset
-    
-    print(f"Saved {output_file}")
-    print(f"Finished processing in {time.time()-tic:.2f} seconds")
-    return output_file
+    for threshold in cloud_thresholds:
+        if win_a_id is None:
+            win_a_id = find_best_image(win_a_start, win_a_end, threshold)
+        if win_b_id is None:
+            win_b_id = find_best_image(win_b_start, win_b_end, threshold)
+        if win_a_id is not None and win_b_id is not None:
+            break
+            
+    if win_a_id is None:
+        raise ValueError(f"Could not find suitable images for window A ({win_a_start} to {win_a_end}) even with 100% cloud cover")
+    if win_b_id is None:
+        raise ValueError(f"Could not find suitable images for window B ({win_b_start} to {win_b_end}) even with 100% cloud cover")
+
+    return win_a_id, win_b_id, [min_lon, min_lat, max_lon, max_lat]
 
 if __name__ == "__main__":
     # Get command line arguments
-    lon = float(sys.argv[1])
-    lat = float(sys.argv[2])
+    top_left = eval(sys.argv[1])  # Convert string tuple to actual tuple
+    bottom_right = eval(sys.argv[2])  # Convert string tuple to actual tuple
     win_a_start = sys.argv[3]
     win_a_end = sys.argv[4]
     win_b_start = sys.argv[5]
@@ -208,24 +143,47 @@ if __name__ == "__main__":
     output_dir = sys.argv[7]
     output_filename = sys.argv[8]
     max_cloud_cover = int(sys.argv[9])
-    patch_size = int(sys.argv[10])
-    
-    # Download the patch
-    output_file = download_sentinel2(
-        lon=lon,
-        lat=lat,
-        win_a_start=win_a_start,
-        win_a_end=win_a_end,
-        win_b_start=win_b_start,
-        win_b_end=win_b_end,
-        output_dir=output_dir,
-        output_filename=output_filename,
-        max_cloud_cover=max_cloud_cover,
-        patch_size=patch_size,
+    conda_env = sys.argv[10] if len(sys.argv) > 10 else None
+
+    # Get best image IDs and bbox
+    win_a_id, win_b_id, bbox_list = get_best_image_ids(
+        top_left, bottom_right,
+        win_a_start, win_a_end,
+        win_b_start, win_b_end,
+        max_cloud_cover
     )
+
+    # Format bbox as string
+    bbox_str = ",".join(map(str, bbox_list))
+
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Determine ftw command path
+    if conda_env:
+        if os.name == 'nt':  # Windows
+            ftw_cmd = os.path.join(conda_env, 'Scripts', 'ftw.exe')
+        else:  # Unix-like
+            ftw_cmd = os.path.join(conda_env, 'bin', 'ftw')
+    else:
+        ftw_cmd = 'ftw'  # Try to use system ftw
+
+    # Check if ftw command exists
+    if not os.path.exists(ftw_cmd):
+        raise FileNotFoundError(f"ftw command not found at {ftw_cmd}. Please ensure it is installed in the conda environment.")
+
+    # Run ftw command
+    cmd = [
+        ftw_cmd, "inference", "download",
+        "--win_a", win_a_id,
+        "--win_b", win_b_id,
+        "--out", os.path.join(output_dir, output_filename),
+        "--bbox", bbox_str,
+        "--overwrite"
+    ]
     
-    # Print the output file path
-    print(output_file)
+    result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+    print(os.path.join(output_dir, output_filename))
 """
         
         # Create a temporary script file
@@ -246,8 +204,8 @@ if __name__ == "__main__":
         cmd = [
             python_exe,
             script_path,
-            str(lon),
-            str(lat),
+            str(top_left),  # Convert tuple to string
+            str(bottom_right),  # Convert tuple to string
             win_a_start,
             win_a_end,
             win_b_start,
@@ -255,7 +213,7 @@ if __name__ == "__main__":
             output_dir,
             output_filename,
             str(max_cloud_cover),
-            str(patch_size)
+            conda_env if conda_env else ""  # Pass conda_env path if available
         ]
         
         result = subprocess.run(cmd, capture_output=True, text=True)
