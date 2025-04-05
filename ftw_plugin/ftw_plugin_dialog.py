@@ -980,17 +980,22 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
                     QgsProject.instance().addMapLayer(raster_layer)
                     # Center and zoom to the layer extent with proper CRS handling
                     self.center_map_on_layer(raster_layer)
-                    message += "\nOutput raster has been added to the map."
+                    # message += "\nOutput raster has been added to the map."
                 else:
                     message += "\nWarning: Could not load output raster."
+                    QtWidgets.QMessageBox.information(
+                        self,
+                        "Success",
+                        message
+                    )
             else:
                 message += "\nWarning: Output file not found."
             
-            QtWidgets.QMessageBox.information(
-                self,
-                "Success",
-                message
-            )
+                QtWidgets.QMessageBox.information(
+                    self,
+                    "Success",
+                    message
+                )
         else:
             QtWidgets.QMessageBox.critical(
                 self,
