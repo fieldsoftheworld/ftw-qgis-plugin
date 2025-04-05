@@ -164,8 +164,8 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
                 QtWidgets.QMessageBox.warning(self, "Error", "Please set the area of interest coordinates.")
                 return
             
-            # Parse coordinates and get center point
-            center_lon, center_lat = self.parse_coordinates(self.roi_bbox.text())
+            # Parse coordinates and get all points
+            (center_lon, center_lat), (tl_lon, tl_lat), (br_lon, br_lat) = self.parse_coordinates(self.roi_bbox.text())
             
             # Get dates
             sos_date = self.sos_date.date().toString('yyyy-MM-dd')
@@ -196,16 +196,15 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
             
             # Extract patch using conda environment
             output_file = self.extract_patch(
-                lon=center_lon,
-                lat=center_lat,
+                top_left=(tl_lon, tl_lat),
+                bottom_right=(br_lon, br_lat),
                 win_a_start=win_a_start,
                 win_a_end=win_a_end,
                 win_b_start=win_b_start,
                 win_b_end=win_b_end,
                 output_dir=output_dir,
                 output_filename=output_filename,
-                max_cloud_cover=70,
-                patch_size=1024,
+                max_cloud_cover=40,
                 conda_env=self.conda_env
             )
             

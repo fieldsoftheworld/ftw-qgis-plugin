@@ -74,6 +74,13 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
             "ftw_plugin_settings.json"
         )
         
+        # Load saved settings
+        self.load_settings()
+        
+        # Check conda environment before proceeding
+        if not self.check_and_setup_environment():
+            return
+        
         # Set up the user interface from Designer through FORM_CLASS.
         # After self.setupUi() you can access any designer object by doing
         # self.<objectName>, and you can use autoconnect slots - see
@@ -84,15 +91,175 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
         # Populate the raster combo box
         self.populate_raster_combo()
         
-        # Load saved settings
-        self.load_settings()
-        
         # Setup model combo box
         self.setup_model_combo()
         
         # Connect to QGIS layer change signals
         QgsProject.instance().layersAdded.connect(self.populate_raster_combo)
         QgsProject.instance().layersRemoved.connect(self.populate_raster_combo)
+
+    def check_and_setup_environment(self):
+        """Check if required conda environment exists and offer to set it up if not."""
+        try:
+            # First check if we have conda path in settings
+            if not hasattr(self, 'conda_path') or not self.conda_path:
+                conda_path = self.detect_conda_env()
+                if not conda_path:
+                    # Create and center the dialog
+                    msg_box = QtWidgets.QMessageBox(self)
+                    msg_box.setWindowTitle("Conda Not Found")
+                    msg_box.setText("Conda installation not found. Would you like to specify the conda path manually?")
+                    msg_box.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+                    msg_box.setWindowModality(Qt.WindowModal)
+                    msg_box.move(self.geometry().center() - msg_box.rect().center())
+                    
+                    response = msg_box.exec_()
+                    
+                    if response == QtWidgets.QMessageBox.Yes:
+                        # Create and center the input dialog
+                        input_dialog = QtWidgets.QInputDialog(self)
+                        input_dialog.setWindowTitle("Conda Path")
+                        input_dialog.setLabelText("Please enter the path to your conda installation (e.g., ~/anaconda3 or ~/miniconda3):")
+                        input_dialog.setTextValue(os.path.expanduser("~/anaconda3"))
+                        input_dialog.setWindowModality(Qt.WindowModal)
+                        input_dialog.move(self.geometry().center() - input_dialog.rect().center())
+                        
+                        ok = input_dialog.exec_()
+                        conda_path = input_dialog.textValue()
+                        
+                        if not ok or not conda_path:
+                            # Create and center the warning dialog
+                            warning_box = QtWidgets.QMessageBox(self)
+                            warning_box.setWindowTitle("Setup Required")
+                            warning_box.setText("The plugin requires conda to be installed. Please install conda and try again.")
+                            warning_box.setIcon(QtWidgets.QMessageBox.Warning)
+                            warning_box.setWindowModality(Qt.WindowModal)
+                            warning_box.move(self.geometry().center() - warning_box.rect().center())
+                            warning_box.exec_()
+                            
+                            self.close()
+                            return False
+                    else:
+                        self.close()
+                        return False
+                
+                # Save the conda path
+                if conda_path.endswith('conda.sh'):
+                    self.save_settings(conda_path)
+                else:
+                    conda_sh_path = os.path.join(conda_path, "etc", "profile.d", "conda.sh")
+                    if os.path.exists(conda_sh_path):
+                        self.save_settings(conda_sh_path)
+                    else:
+                        # Create and center the error dialog
+                        error_box = QtWidgets.QMessageBox(self)
+                        error_box.setWindowTitle("Error")
+                        error_box.setText(f"Could not find conda.sh in the specified conda installation.")
+                        error_box.setIcon(QtWidgets.QMessageBox.Critical)
+                        error_box.setWindowModality(Qt.WindowModal)
+                        error_box.move(self.geometry().center() - error_box.rect().center())
+                        error_box.exec_()
+                        
+                        self.close()
+                        return False
+
+            # Now check if the environment exists
+            env_name = getattr(self, 'env_name', 'ftw_plugin')
+            check_env_cmd = f"""
+            source "{self.conda_path}"
+            conda env list | grep "^{env_name} "
+            """
+            
+            result = subprocess.run(['bash', '-c', check_env_cmd], 
+                                  capture_output=True, 
+                                  text=True)
+            
+            if result.returncode != 0 or env_name not in result.stdout:
+                # Create and center the setup dialog
+                setup_box = QtWidgets.QMessageBox(self)
+                setup_box.setWindowTitle("Environment Setup Required")
+                setup_box.setText(f"The required conda environment '{env_name}' is not set up. Would you like to set it up now?\n\n"
+                                "This will install necessary dependencies and may take a few minutes.")
+                setup_box.setInformativeText("The plugin requires this environment to function properly. Without it, you won't be able to use the plugin's features.")
+                setup_box.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+                setup_box.setWindowModality(Qt.WindowModal)
+                setup_box.move(self.geometry().center() - setup_box.rect().center())
+                
+                response = setup_box.exec_()
+                
+                if response == QtWidgets.QMessageBox.Yes:
+                    # Create and center the progress dialog
+                    progress = QtWidgets.QProgressDialog(
+                        "Setting up conda environment...", 
+                        "Cancel", 0, 100, self
+                    )
+                    progress.setWindowTitle("Environment Setup")
+                    progress.setWindowModality(Qt.WindowModal)
+                    progress.setAutoClose(True)
+                    progress.move(self.geometry().center() - progress.rect().center())
+                    progress.show()
+                    
+                    def update_progress(value, message):
+                        progress.setLabelText(message)
+                        progress.setValue(value)
+                        QtWidgets.QApplication.processEvents()
+                    
+                    try:
+                        setup_ftw_env(self.conda_path, env_name, update_progress)
+                        # Create and center the success dialog
+                        # success_box = QtWidgets.QMessageBox(self)
+                        # success_box.setWindowTitle("Setup Complete")
+                        # success_box.setText("The conda environment has been successfully set up!")
+                        # success_box.setIcon(QtWidgets.QMessageBox.Information)
+                        # success_box.setWindowModality(Qt.WindowModal)
+                        # success_box.move(self.geometry().center() - success_box.rect().center())
+                        # success_box.exec_()
+                    except Exception as e:
+                        # Create and center the error dialog
+                        error_box = QtWidgets.QMessageBox(self)
+                        error_box.setWindowTitle("Setup Failed")
+                        error_box.setText(f"Failed to set up conda environment: {str(e)}")
+                        error_box.setIcon(QtWidgets.QMessageBox.Critical)
+                        error_box.setWindowModality(Qt.WindowModal)
+                        error_box.move(self.geometry().center() - error_box.rect().center())
+                        error_box.exec_()
+                        
+                        self.close()
+                        return False
+                else:
+                    # Create and center the information dialog
+                    info_box = QtWidgets.QMessageBox(self)
+                    info_box.setWindowTitle("Setup Required")
+                    info_box.setText("The plugin cannot run without the required environment.")
+                    info_box.setInformativeText(
+                        "You can set up the environment later by:\n"
+                        "1. Reopening the plugin\n"
+                        "2. Using the 'Setup Environment' button in the plugin settings\n"
+                        "3. Running the setup command manually in your terminal"
+                    )
+                    info_box.setIcon(QtWidgets.QMessageBox.Information)
+                    info_box.setWindowModality(Qt.WindowModal)
+                    info_box.move(self.geometry().center() - info_box.rect().center())
+                    info_box.exec_()
+                    
+                    self.close()
+                    
+                    return False
+            
+            return True
+            
+        except Exception as e:
+            # Create and center the error dialog
+            error_box = QtWidgets.QMessageBox(self)
+            error_box.setWindowTitle("Error")
+            error_box.setText(f"Failed to check/setup environment: {str(e)}")
+            error_box.setIcon(QtWidgets.QMessageBox.Critical)
+            error_box.setWindowModality(Qt.WindowModal)
+            error_box.move(self.geometry().center() - error_box.rect().center())
+            error_box.exec_()
+            
+            self.close()
+            return False
 
     def setupConnections(self):
         """Set up all signal connections for the dialog."""
@@ -813,17 +980,22 @@ class FTWDialog(QtWidgets.QDialog, FORM_CLASS):
                     QgsProject.instance().addMapLayer(raster_layer)
                     # Center and zoom to the layer extent with proper CRS handling
                     self.center_map_on_layer(raster_layer)
-                    message += "\nOutput raster has been added to the map."
+                    # message += "\nOutput raster has been added to the map."
                 else:
                     message += "\nWarning: Could not load output raster."
+                    QtWidgets.QMessageBox.information(
+                        self,
+                        "Success",
+                        message
+                    )
             else:
                 message += "\nWarning: Output file not found."
             
-            QtWidgets.QMessageBox.information(
-                self,
-                "Success",
-                message
-            )
+                QtWidgets.QMessageBox.information(
+                    self,
+                    "Success",
+                    message
+                )
         else:
             QtWidgets.QMessageBox.critical(
                 self,
