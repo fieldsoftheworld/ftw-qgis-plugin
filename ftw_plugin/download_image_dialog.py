@@ -22,6 +22,18 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
         # Set up the dialog from the UI
         self.setupUi(self)
         
+        # Define season TIF paths
+        self.seasons = {
+            "summer": {
+                "start": "/Users/gmuhawen/Gedeon/RESEARCH/FTW/ftw_data_download/data/sc_sos_3x3_v2.tiff",
+                "end": "/Users/gmuhawen/Gedeon/RESEARCH/FTW/ftw_data_download/data/sc_eos_3x3_v2.tiff"
+            },
+            "winter": {
+                "start": "/Users/gmuhawen/Gedeon/RESEARCH/FTW/ftw_data_download/data/wc_eos_3x3_v2.tiff",
+                "end": "/Users/gmuhawen/Gedeon/RESEARCH/FTW/ftw_data_download/data/wc_sos_3x3_v2.tiff"
+            }
+        }
+        
         # Set default dates
         self.sos_date.setDate(QDate(2024, 6, 1))  # 01/06/2024
         self.eos_date.setDate(QDate(2024, 11, 30))  # 31/11/2024
@@ -49,6 +61,13 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
         
         # Connect the browse button for output path
         self.download_tif_path.clicked.connect(self.browse_output)
+        
+        # Connect crop type radio buttons
+        self.winter_crops.toggled.connect(self.update_dates_from_season)
+        self.summer_crops.toggled.connect(self.update_dates_from_season)
+        
+        # Connect ROI text change
+        self.roi_bbox.textChanged.connect(self.update_dates_from_season)
         
         # Initialize conda environment
         self.conda_env = None
@@ -104,10 +123,11 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.conda_env = os.path.join(conda_base, 'envs', env_name)
             
             # Now import the download utilities
-            from .download_utils import parse_coordinates, calculate_window_dates, extract_patch
+            from .download_utils import parse_coordinates, calculate_window_dates, extract_patch, get_dates_from_tifs
             self.parse_coordinates = parse_coordinates
             self.calculate_window_dates = calculate_window_dates
             self.extract_patch = extract_patch
+            self.get_dates_from_tifs = get_dates_from_tifs
             
         except Exception as e:
             QtWidgets.QMessageBox.critical(
@@ -323,4 +343,45 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
             if layer.type() == QgsMapLayer.VectorLayer or layer.type() == QgsMapLayer.RasterLayer:
                 action = self.layer_menu.addAction(layer.name())
                 action.setData(layer_id)
-                action.triggered.connect(lambda checked, lid=layer_id: self.calculate_from_layer(lid)) 
+                action.triggered.connect(lambda checked, lid=layer_id: self.calculate_from_layer(lid))
+    
+    def update_dates_from_season(self):
+        """Update dates based on selected season and coordinates."""
+        try:
+            # Check if we have coordinates
+            if not self.roi_bbox.text():
+                return
+            
+            # Get the selected season
+            season = "winter" if self.winter_crops.isChecked() else "summer"
+            
+            # Get the center point from coordinates
+            (center_lon, center_lat), _, _ = self.parse_coordinates(self.roi_bbox.text())
+            
+            # Create a point geometry
+            from qgis.core import QgsPointXY, QgsGeometry
+            point = QgsGeometry.fromPointXY(QgsPointXY(center_lon, center_lat))
+            
+            # Get the TIF paths for the selected season
+            start_tif = self.seasons[season]["start"]
+            end_tif = self.seasons[season]["end"]
+            
+            # Get dates from TIFs
+            start_date, end_date = self.get_dates_from_tifs(
+                point=point,
+                start_season_tif_path=start_tif,
+                end_season_tif_path=end_tif,
+                year=2024
+            )
+            
+            # Update the date widgets
+            start_qdate = QDate.fromString(start_date, "yyyy-MM-dd")
+            end_qdate = QDate.fromString(end_date, "yyyy-MM-dd")
+            
+            self.sos_date.setDate(start_qdate)
+            self.eos_date.setDate(end_qdate)
+            
+        except Exception as e:
+            # Don't show error message here to avoid spamming the user
+            # The error will be caught during the actual download
+            pass 

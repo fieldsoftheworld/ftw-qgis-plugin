@@ -1073,7 +1073,7 @@ def setup_ftw_env(conda_setup, env_name, progress_callback=None):
     else
         echo "[PROGRESS] 75 Installing required packages..."
         conda install -y -c conda-forge gdal rasterio pyproj libgdal-arrow-parquet
-        pip install ftw-tools stackstac
+        pip install ftw-tools stackstac rioxarray
     fi
 
     # Final Test
