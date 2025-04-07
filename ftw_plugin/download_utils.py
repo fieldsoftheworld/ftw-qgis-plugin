@@ -4,8 +4,9 @@ from qgis.core import QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsP
 import subprocess
 import sys
 import tempfile
-
-import rioxarray
+import rasterio
+from rasterio.transform import rowcol
+from shapely.geometry import Point
 
 def parse_coordinates(coord_str):
     """
@@ -45,45 +46,41 @@ def parse_coordinates(coord_str):
     return (center_lon, center_lat), (tl_lon, tl_lat), (br_lon, br_lat)
 
 
-
 def get_date_from_day_of_year(day_of_year: int, year: int) -> str:
     if day_of_year < 1 or day_of_year > 366:
         raise ValueError("day_of_year must be between 1 and 366")
-
-    start_date = datetime(year, 1, 1)
-    result_date = start_date + timedelta(days=day_of_year - 1)
-
+    base_date = datetime(year, 1, 1)
+    result_date = base_date + timedelta(days=day_of_year - 1)
     if day_of_year == 366 and result_date.year != year:
-        raise ValueError(f"{year} is not a leap year, so day 366 is invalid.")
-
+        raise ValueError(f"{year} is not a leap year.")
     return result_date.strftime("%Y-%m-%d")
 
-def get_dates_from_tifs(point, start_season_tif_path, end_season_tif_path, year=2024):
+def get_dates_from_tifs(point: Point, start_season_tif_path: str, end_season_tif_path: str, year=2020):
     """
-    Get start and end dates from season TIFs for a specific point.
-    
+    Extract start and end crop calendar dates (day-of-year and date) from GeoTIFFs using rasterio.
+
     Args:
-        point: Point geometry
-        start_season_tif: rioxarray dataset for start season
-        end_season_tif: rioxarray dataset for end season
-        year: The year to convert day-of-year to date (default 2020)
-    
+        point: shapely.geometry.Point
+        start_season_tif_path: path to the start season GeoTIFF
+        end_season_tif_path: path to the end season GeoTIFF
+        year: crop calendar reference year
+
     Returns:
-        start_day, end_day, start_date_str, end_date_str
+        (start_day, end_day, start_date_str, end_date_str)
     """
-    # Get the pixel coordinates for this point
-    x, y = point.x, point.y
-    start_season_tif = rioxarray.open_rasterio(start_season_tif_path)
-    end_season_tif = rioxarray.open_rasterio(end_season_tif_path)
+    with rasterio.open(start_season_tif_path) as start_src:
+        row, col = rowcol(start_src.transform, point.x, point.y)
+        start_day = start_src.read(1)[row, col]
 
-    start_day = start_season_tif.sel(x=x, y=y, method="nearest").values.item()
-    end_day = end_season_tif.sel(x=x, y=y, method="nearest").values.item()
+    with rasterio.open(end_season_tif_path) as end_src:
+        row, col = rowcol(end_src.transform, point.x, point.y)
+        end_day = end_src.read(1)[row, col]
 
-    # Convert day-of-year to date strings
-    start_date_str = get_date_from_day_of_year(start_day, year)
-    end_date_str = get_date_from_day_of_year(end_day, year)
+    start_date = get_date_from_day_of_year(int(start_day), year)
+    end_date = get_date_from_day_of_year(int(end_day), year)
+    
+    return start_date, end_date
 
-    return start_date_str, end_date_str
 
 
 def calculate_window_dates(sos_date, eos_date):

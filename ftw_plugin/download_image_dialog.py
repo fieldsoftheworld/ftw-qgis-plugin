@@ -38,8 +38,8 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
         self.sos_date.setDate(QDate(2024, 6, 1))  # 01/06/2024
         self.eos_date.setDate(QDate(2024, 11, 30))  # 31/11/2024
         
-        # Set winter crops as default
-        self.winter_crops.setChecked(True)
+        # Set other crops as default
+        self.other_crops.setChecked(True)
         
         # Create menu for ROI extraction button
         self.roi_menu = QtWidgets.QMenu(self)
@@ -63,11 +63,12 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
         self.download_tif_path.clicked.connect(self.browse_output)
         
         # Connect crop type radio buttons
-        self.winter_crops.toggled.connect(self.update_dates_from_season)
-        self.summer_crops.toggled.connect(self.update_dates_from_season)
+        self.winter_crops.toggled.connect(self.on_crop_type_changed)
+        self.summer_crops.toggled.connect(self.on_crop_type_changed)
+        self.other_crops.toggled.connect(self.on_crop_type_changed)
         
         # Connect ROI text change
-        self.roi_bbox.textChanged.connect(self.update_dates_from_season)
+        self.roi_bbox.textChanged.connect(self.on_roi_changed)
         
         # Initialize conda environment
         self.conda_env = None
@@ -345,6 +346,21 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
                 action.setData(layer_id)
                 action.triggered.connect(lambda checked, lid=layer_id: self.calculate_from_layer(lid))
     
+    def on_crop_type_changed(self, checked):
+        """Handle crop type radio button changes."""
+        if not checked:
+            return
+            
+        # Only update dates if winter or summer is selected
+        if self.winter_crops.isChecked() or self.summer_crops.isChecked():
+            self.update_dates_from_season()
+
+    def on_roi_changed(self):
+        """Handle ROI text changes."""
+        # Only update dates if winter or summer is selected
+        if self.winter_crops.isChecked() or self.summer_crops.isChecked():
+            self.update_dates_from_season()
+
     def update_dates_from_season(self):
         """Update dates based on selected season and coordinates."""
         try:
