@@ -39,7 +39,7 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
         self.eos_date.setDate(QDate(2024, 11, 30))  # 31/11/2024
         
         # Set other crops as default
-        self.other_crops.setChecked(True)
+        # self.other_crops.setChecked(True)
         
         # Create menu for ROI extraction button
         self.roi_menu = QtWidgets.QMenu(self)
@@ -65,7 +65,7 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
         # Connect crop type radio buttons
         self.winter_crops.toggled.connect(self.on_crop_type_changed)
         self.summer_crops.toggled.connect(self.on_crop_type_changed)
-        self.other_crops.toggled.connect(self.on_crop_type_changed)
+        # self.other_crops.toggled.connect(self.on_crop_type_changed)
         
         # Connect ROI text change
         self.roi_bbox.textChanged.connect(self.on_roi_changed)
