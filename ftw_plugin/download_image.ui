@@ -6,20 +6,20 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>375</width>
-    <height>365</height>
+    <width>370</width>
+    <height>370</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
-    <width>375</width>
-    <height>365</height>
+    <width>370</width>
+    <height>370</height>
    </size>
   </property>
   <property name="maximumSize">
    <size>
-    <width>375</width>
-    <height>365</height>
+    <width>370</width>
+    <height>370</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -28,7 +28,7 @@
   <widget class="QFrame" name="frame">
    <property name="geometry">
     <rect>
-     <x>20</x>
+     <x>15</x>
      <y>9</y>
      <width>341</width>
      <height>91</height>
@@ -43,8 +43,8 @@
    <widget class="QToolButton" name="roi_extraction_button">
     <property name="geometry">
      <rect>
-      <x>300</x>
-      <y>30</y>
+      <x>288</x>
+      <y>31</y>
       <width>26</width>
       <height>22</height>
      </rect>
@@ -65,14 +65,71 @@
      <string>...</string>
     </property>
    </widget>
+   <widget class="QSpinBox" name="crop_year">
+    <property name="geometry">
+     <rect>
+      <x>260</x>
+      <y>63</y>
+      <width>54</width>
+      <height>21</height>
+     </rect>
+    </property>
+    <property name="minimumSize">
+     <size>
+      <width>54</width>
+      <height>0</height>
+     </size>
+    </property>
+    <property name="maximumSize">
+     <size>
+      <width>16777215</width>
+      <height>16777215</height>
+     </size>
+    </property>
+    <property name="minimum">
+     <number>2015</number>
+    </property>
+    <property name="maximum">
+     <number>2025</number>
+    </property>
+    <property name="value">
+     <number>2024</number>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_6">
+    <property name="geometry">
+     <rect>
+      <x>230</x>
+      <y>65</y>
+      <width>27</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Year</string>
+    </property>
+   </widget>
+   <widget class="QRadioButton" name="summer_crops">
+    <property name="geometry">
+     <rect>
+      <x>120</x>
+      <y>64</y>
+      <width>76</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Summer</string>
+    </property>
+   </widget>
   </widget>
   <widget class="QFrame" name="frame_2">
    <property name="geometry">
     <rect>
-     <x>20</x>
-     <y>119</y>
+     <x>15</x>
+     <y>114</y>
      <width>341</width>
-     <height>71</height>
+     <height>101</height>
     </rect>
    </property>
    <property name="frameShape">
@@ -81,12 +138,255 @@
    <property name="frameShadow">
     <enum>QFrame::Raised</enum>
    </property>
+   <widget class="QLabel" name="label_7">
+    <property name="geometry">
+     <rect>
+      <x>30</x>
+      <y>58</y>
+      <width>71</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Window A:</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_8">
+    <property name="geometry">
+     <rect>
+      <x>30</x>
+      <y>78</y>
+      <width>71</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Window B:</string>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="win_a_start_date">
+    <property name="geometry">
+     <rect>
+      <x>100</x>
+      <y>59</y>
+      <width>61</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>11</pointsize>
+     </font>
+    </property>
+    <property name="inputMask">
+     <string/>
+    </property>
+    <property name="placeholderText">
+     <string>[M/d/yy]</string>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="win_b_start_date">
+    <property name="geometry">
+     <rect>
+      <x>100</x>
+      <y>78</y>
+      <width>61</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>11</pointsize>
+     </font>
+    </property>
+    <property name="placeholderText">
+     <string>[M/d/yy]</string>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="win_a_end_date">
+    <property name="geometry">
+     <rect>
+      <x>183</x>
+      <y>58</y>
+      <width>61</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>11</pointsize>
+     </font>
+    </property>
+    <property name="placeholderText">
+     <string>[M/d/yy]</string>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="win_b_end_date">
+    <property name="geometry">
+     <rect>
+      <x>183</x>
+      <y>78</y>
+      <width>61</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>11</pointsize>
+     </font>
+    </property>
+    <property name="placeholderText">
+     <string>[M/d/yy]</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_9">
+    <property name="geometry">
+     <rect>
+      <x>165</x>
+      <y>58</y>
+      <width>16</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>to</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_10">
+    <property name="geometry">
+     <rect>
+      <x>165</x>
+      <y>77</y>
+      <width>16</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>to</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_11">
+    <property name="geometry">
+     <rect>
+      <x>277</x>
+      <y>56</y>
+      <width>51</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Cloud %</string>
+    </property>
+   </widget>
+   <widget class="QSpinBox" name="cloud_cover_threshold">
+    <property name="geometry">
+     <rect>
+      <x>283</x>
+      <y>73</y>
+      <width>38</width>
+      <height>22</height>
+     </rect>
+    </property>
+    <property name="minimumSize">
+     <size>
+      <width>38</width>
+      <height>0</height>
+     </size>
+    </property>
+    <property name="maximumSize">
+     <size>
+      <width>38</width>
+      <height>16777215</height>
+     </size>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>11</pointsize>
+     </font>
+    </property>
+    <property name="value">
+     <number>20</number>
+    </property>
+   </widget>
+   <widget class="QWidget" name="">
+    <property name="geometry">
+     <rect>
+      <x>29</x>
+      <y>24</y>
+      <width>298</width>
+      <height>21</height>
+     </rect>
+    </property>
+    <layout class="QHBoxLayout" name="horizontalLayout_3">
+     <item>
+      <widget class="QLabel" name="label_2">
+       <property name="text">
+        <string>sos</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QDateEdit" name="sos_date">
+       <property name="minimumDate">
+        <date>
+         <year>2015</year>
+         <month>1</month>
+         <day>1</day>
+        </date>
+       </property>
+       <property name="displayFormat">
+        <string notr="true">M/d/yy</string>
+       </property>
+       <property name="calendarPopup">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="horizontalSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>18</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QLabel" name="label_3">
+       <property name="text">
+        <string>eos</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QDateEdit" name="eos_date">
+       <property name="minimumDate">
+        <date>
+         <year>2015</year>
+         <month>1</month>
+         <day>1</day>
+        </date>
+       </property>
+       <property name="displayFormat">
+        <string notr="true">M/d/yy</string>
+       </property>
+       <property name="calendarPopup">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </widget>
   </widget>
   <widget class="QFrame" name="frame_3">
    <property name="geometry">
     <rect>
-     <x>20</x>
-     <y>209</y>
+     <x>15</x>
+     <y>230</y>
      <width>341</width>
      <height>61</height>
     </rect>
@@ -101,7 +401,7 @@
   <widget class="QLabel" name="label">
    <property name="geometry">
     <rect>
-     <x>30</x>
+     <x>25</x>
      <y>15</y>
      <width>301</width>
      <height>20</height>
@@ -114,8 +414,8 @@
   <widget class="QLabel" name="label_5">
    <property name="geometry">
     <rect>
-     <x>30</x>
-     <y>215</y>
+     <x>25</x>
+     <y>236</y>
      <width>111</width>
      <height>16</height>
     </rect>
@@ -124,90 +424,17 @@
     <string>Output file path</string>
    </property>
   </widget>
-  <widget class="QWidget" name="layoutWidget_2">
-   <property name="geometry">
-    <rect>
-     <x>51</x>
-     <y>147</y>
-     <width>298</width>
-     <height>34</height>
-    </rect>
-   </property>
-   <layout class="QHBoxLayout" name="horizontalLayout_3">
-    <item>
-     <widget class="QLabel" name="label_2">
-      <property name="text">
-       <string>sos</string>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <widget class="QDateEdit" name="sos_date">
-      <property name="minimumDate">
-       <date>
-        <year>2015</year>
-        <month>1</month>
-        <day>1</day>
-       </date>
-      </property>
-      <property name="displayFormat">
-       <string notr="true">M/d/yy</string>
-      </property>
-      <property name="calendarPopup">
-       <bool>true</bool>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <spacer name="horizontalSpacer">
-      <property name="orientation">
-       <enum>Qt::Horizontal</enum>
-      </property>
-      <property name="sizeHint" stdset="0">
-       <size>
-        <width>18</width>
-        <height>20</height>
-       </size>
-      </property>
-     </spacer>
-    </item>
-    <item>
-     <widget class="QLabel" name="label_3">
-      <property name="text">
-       <string>eos</string>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <widget class="QDateEdit" name="eos_date">
-      <property name="minimumDate">
-       <date>
-        <year>2015</year>
-        <month>1</month>
-        <day>1</day>
-       </date>
-      </property>
-      <property name="displayFormat">
-       <string notr="true">M/d/yy</string>
-      </property>
-      <property name="calendarPopup">
-       <bool>true</bool>
-      </property>
-     </widget>
-    </item>
-   </layout>
-  </widget>
   <widget class="QLabel" name="label_4">
    <property name="geometry">
     <rect>
-     <x>30</x>
-     <y>125</y>
+     <x>25</x>
+     <y>118</y>
      <width>301</width>
      <height>16</height>
     </rect>
    </property>
    <property name="text">
-    <string>Season start and end dates (Auto extracted)</string>
+    <string>Imagery search parameters</string>
    </property>
    <property name="openExternalLinks">
     <bool>false</bool>
@@ -216,10 +443,10 @@
   <widget class="QProgressBar" name="progressBar">
    <property name="geometry">
     <rect>
-     <x>20</x>
-     <y>284</y>
+     <x>15</x>
+     <y>302</y>
      <width>341</width>
-     <height>23</height>
+     <height>21</height>
     </rect>
    </property>
    <property name="value">
@@ -232,8 +459,8 @@
   <widget class="QWidget" name="layoutWidget_3">
    <property name="geometry">
     <rect>
-     <x>50</x>
-     <y>237</y>
+     <x>45</x>
+     <y>258</y>
      <width>288</width>
      <height>24</height>
     </rect>
@@ -264,69 +491,10 @@
     </item>
    </layout>
   </widget>
-  <widget class="QWidget" name="">
-   <property name="geometry">
-    <rect>
-     <x>173</x>
-     <y>320</y>
-     <width>186</width>
-     <height>32</height>
-    </rect>
-   </property>
-   <layout class="QHBoxLayout" name="horizontalLayout_5">
-    <item>
-     <widget class="QPushButton" name="download_button">
-      <property name="text">
-       <string>Download</string>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <widget class="QPushButton" name="download_ui_cancel">
-      <property name="text">
-       <string>Cancel</string>
-      </property>
-     </widget>
-    </item>
-   </layout>
-  </widget>
-  <widget class="QWidget" name="">
-   <property name="geometry">
-    <rect>
-     <x>50</x>
-     <y>67</y>
-     <width>298</width>
-     <height>20</height>
-    </rect>
-   </property>
-   <layout class="QHBoxLayout" name="horizontalLayout">
-    <item>
-     <widget class="QRadioButton" name="winter_crops">
-      <property name="text">
-       <string>Winter crops</string>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <widget class="QRadioButton" name="summer_crops">
-      <property name="text">
-       <string>Summer crops</string>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <widget class="QRadioButton" name="other_crops">
-      <property name="text">
-       <string>Other</string>
-      </property>
-     </widget>
-    </item>
-   </layout>
-  </widget>
   <widget class="QLineEdit" name="roi_bbox">
    <property name="geometry">
     <rect>
-     <x>55</x>
+     <x>50</x>
      <y>41</y>
      <width>250</width>
      <height>21</height>
@@ -345,7 +513,7 @@
     <string>[Top left (lon,lat) Bottom right (lon,lat)]</string>
    </property>
   </widget>
-  <widget class="QWidget" name="">
+  <widget class="QWidget" name="layoutWidget">
    <property name="geometry">
     <rect>
      <x>0</x>
@@ -355,6 +523,56 @@
     </rect>
    </property>
    <layout class="QHBoxLayout" name="horizontalLayout_2"/>
+  </widget>
+  <widget class="QRadioButton" name="winter_crops">
+   <property name="geometry">
+    <rect>
+     <x>45</x>
+     <y>73</y>
+     <width>71</width>
+     <height>20</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Winter </string>
+   </property>
+  </widget>
+  <widget class="QWidget" name="">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>2</width>
+     <height>2</height>
+    </rect>
+   </property>
+   <layout class="QHBoxLayout" name="horizontalLayout_6"/>
+  </widget>
+  <widget class="QWidget" name="">
+   <property name="geometry">
+    <rect>
+     <x>168</x>
+     <y>332</y>
+     <width>186</width>
+     <height>32</height>
+    </rect>
+   </property>
+   <layout class="QHBoxLayout" name="horizontalLayout">
+    <item>
+     <widget class="QPushButton" name="download_button">
+      <property name="text">
+       <string>Download</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QPushButton" name="download_ui_cancel">
+      <property name="text">
+       <string>Cancel</string>
+      </property>
+     </widget>
+    </item>
+   </layout>
   </widget>
  </widget>
  <resources/>

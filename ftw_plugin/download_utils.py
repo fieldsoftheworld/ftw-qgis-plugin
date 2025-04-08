@@ -4,6 +4,9 @@ from qgis.core import QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsP
 import subprocess
 import sys
 import tempfile
+import rasterio
+from rasterio.transform import rowcol
+from shapely.geometry import Point
 
 def parse_coordinates(coord_str):
     """
@@ -41,6 +44,47 @@ def parse_coordinates(coord_str):
     center_lat = (tl_lat + br_lat) / 2
     
     return (center_lon, center_lat), (tl_lon, tl_lat), (br_lon, br_lat)
+
+
+def get_date_from_day_of_year(day_of_year: int, year: int) -> str:
+    if day_of_year < 1 or day_of_year > 366:
+        raise ValueError("day_of_year must be between 1 and 366")
+    base_date = datetime(year, 1, 1)
+    result_date = base_date + timedelta(days=day_of_year - 1)
+    if day_of_year == 366 and result_date.year != year:
+        raise ValueError(f"{year} is not a leap year.")
+    return result_date.strftime("%Y-%m-%d")
+
+def get_dates_from_tifs(point: Point, start_season_tif_path: str, end_season_tif_path: str, year=2020, season_type='winter'):
+    """
+    Extract start and end crop calendar dates (day-of-year and date) from GeoTIFFs using rasterio.
+
+    Args:
+        point: shapely.geometry.Point
+        start_season_tif_path: path to the start season GeoTIFF
+        end_season_tif_path: path to the end season GeoTIFF
+        year: crop calendar reference year
+
+    Returns:
+        (start_day, end_day, start_date_str, end_date_str)
+    """
+    with rasterio.open(start_season_tif_path) as start_src:
+        row, col = rowcol(start_src.transform, point.x, point.y)
+        start_day = start_src.read(1)[row, col]
+
+    with rasterio.open(end_season_tif_path) as end_src:
+        row, col = rowcol(end_src.transform, point.x, point.y)
+        end_day = end_src.read(1)[row, col]
+
+    # Handle crop calendars that span across years, like a season starting in September and ending in March
+    end_year = year + 1 if end_day < start_day else year
+
+    start_date = get_date_from_day_of_year(int(start_day), year)
+    end_date = get_date_from_day_of_year(int(end_day), end_year)
+    
+    return start_date, end_date
+
+
 
 def calculate_window_dates(sos_date, eos_date):
     """
