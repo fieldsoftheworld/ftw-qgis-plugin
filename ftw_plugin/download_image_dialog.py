@@ -38,6 +38,11 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
         self.sos_date.setDate(QDate(2024, 6, 1))  # 01/06/2024
         self.eos_date.setDate(QDate(2024, 11, 30))  # 31/11/2024
         
+        # Set default cloud cover threshold
+        self.cloud_cover_threshold.setValue(20)  # Default to 20%
+        self.cloud_cover_threshold.setRange(0, 100)  # Allow 0-100%
+        self.cloud_cover_threshold.setSuffix("%")  # Add % suffix
+        
         # Create a button group for crop type radio buttons
         self.crop_type_group = QtWidgets.QButtonGroup(self)
         self.crop_type_group.addButton(self.winter_crops)
@@ -74,6 +79,9 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
         
         # Connect ROI text change
         self.roi_bbox.textChanged.connect(self.on_roi_changed)
+        
+        # Connect year change
+        self.crop_year.valueChanged.connect(self.on_year_changed)
         
         # Initialize conda environment
         self.conda_env = None
@@ -215,6 +223,9 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
             # Get the output filename
             output_filename = os.path.basename(output_path)
             
+            # Get cloud cover threshold
+            max_cloud_cover = self.cloud_cover_threshold.value()
+            
             # Update progress
             self.progressBar.setValue(20)
             self.progressBar.setFormat("Downloading images...")
@@ -230,7 +241,7 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
                 win_b_end=win_b_end,
                 output_dir=output_dir,
                 output_filename=output_filename,
-                max_cloud_cover=40,
+                max_cloud_cover=max_cloud_cover,
                 conda_env=self.conda_env
             )
             
@@ -366,6 +377,12 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
         if self.winter_crops.isChecked() or self.summer_crops.isChecked():
             self.update_dates_from_season()
 
+    def on_year_changed(self, value):
+        """Handle year spinbox changes."""
+        # Only update dates if winter or summer is selected
+        if self.winter_crops.isChecked() or self.summer_crops.isChecked():
+            self.update_dates_from_season()
+
     def update_dates_from_season(self):
         """Update dates based on selected season and coordinates."""
         try:
@@ -406,6 +423,21 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
             self.sos_date.setDate(start_qdate)
             self.eos_date.setDate(end_qdate)
             
+            # Calculate window dates
+            win_a_start, win_a_end, win_b_start, win_b_end = self.calculate_window_dates(start_date, end_date)
+            
+            # Convert window dates to M/d/yy format
+            win_a_start_date = QDate.fromString(win_a_start, "yyyy-MM-dd").toString("M/d/yy")
+            win_a_end_date = QDate.fromString(win_a_end, "yyyy-MM-dd").toString("M/d/yy")
+            win_b_start_date = QDate.fromString(win_b_start, "yyyy-MM-dd").toString("M/d/yy")
+            win_b_end_date = QDate.fromString(win_b_end, "yyyy-MM-dd").toString("M/d/yy")
+            
+            # Update window date fields
+            self.win_a_start_date.setText(win_a_start_date)
+            self.win_a_end_date.setText(win_a_end_date)
+            self.win_b_start_date.setText(win_b_start_date)
+            self.win_b_end_date.setText(win_b_end_date)
+            
             # Print selected parameters for inspection
             print("\nSelected Parameters:")
             print(f"Season: {season}")
@@ -413,6 +445,8 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
             print(f"Center Coordinates: ({center_lon}, {center_lat})")
             print(f"Start of Season: {start_date}")
             print(f"End of Season: {end_date}")
+            print(f"Window A: {win_a_start_date} to {win_a_end_date}")
+            print(f"Window B: {win_b_start_date} to {win_b_end_date}")
             print(f"Start TIF: {start_tif}")
             print(f"End TIF: {end_tif}")
             

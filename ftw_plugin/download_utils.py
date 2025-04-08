@@ -76,8 +76,11 @@ def get_dates_from_tifs(point: Point, start_season_tif_path: str, end_season_tif
         row, col = rowcol(end_src.transform, point.x, point.y)
         end_day = end_src.read(1)[row, col]
 
+    # Handle crop calendars that span across years, like a season starting in September and ending in March
+    end_year = year + 1 if end_day < start_day else year
+
     start_date = get_date_from_day_of_year(int(start_day), year)
-    end_date = get_date_from_day_of_year(int(end_day), year)
+    end_date = get_date_from_day_of_year(int(end_day), end_year)
     
     return start_date, end_date
 

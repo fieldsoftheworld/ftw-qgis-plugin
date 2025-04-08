@@ -43,8 +43,8 @@
    <widget class="QToolButton" name="roi_extraction_button">
     <property name="geometry">
      <rect>
-      <x>300</x>
-      <y>30</y>
+      <x>288</x>
+      <y>31</y>
       <width>26</width>
       <height>22</height>
      </rect>
@@ -278,7 +278,7 @@
      <string>Cloud %</string>
     </property>
    </widget>
-   <widget class="QSpinBox" name="max_cloud_cover">
+   <widget class="QSpinBox" name="cloud_cover_threshold">
     <property name="geometry">
      <rect>
       <x>283</x>
