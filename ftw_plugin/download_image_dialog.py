@@ -38,8 +38,14 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
         self.sos_date.setDate(QDate(2024, 6, 1))  # 01/06/2024
         self.eos_date.setDate(QDate(2024, 11, 30))  # 31/11/2024
         
-        # Set other crops as default
-        # self.other_crops.setChecked(True)
+        # Create a button group for crop type radio buttons
+        self.crop_type_group = QtWidgets.QButtonGroup(self)
+        self.crop_type_group.addButton(self.winter_crops)
+        self.crop_type_group.addButton(self.summer_crops)
+        self.crop_type_group.setExclusive(True)  # Ensure only one can be selected at a time
+        
+        # Set winter crops as default
+        self.winter_crops.setChecked(True)
         
         # Create menu for ROI extraction button
         self.roi_menu = QtWidgets.QMenu(self)
@@ -65,7 +71,6 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
         # Connect crop type radio buttons
         self.winter_crops.toggled.connect(self.on_crop_type_changed)
         self.summer_crops.toggled.connect(self.on_crop_type_changed)
-        # self.other_crops.toggled.connect(self.on_crop_type_changed)
         
         # Connect ROI text change
         self.roi_bbox.textChanged.connect(self.on_roi_changed)
@@ -375,19 +380,23 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
             (center_lon, center_lat), _, _ = self.parse_coordinates(self.roi_bbox.text())
             
             # Create a point geometry
-            from qgis.core import QgsPointXY, QgsGeometry
-            point = QgsGeometry.fromPointXY(QgsPointXY(center_lon, center_lat))
+            from shapely.geometry import Point
+            point = Point(center_lon, center_lat)
             
             # Get the TIF paths for the selected season
             start_tif = self.seasons[season]["start"]
             end_tif = self.seasons[season]["end"]
+            
+            # Get the year from the spinbox
+            year = self.crop_year.value()
             
             # Get dates from TIFs
             start_date, end_date = self.get_dates_from_tifs(
                 point=point,
                 start_season_tif_path=start_tif,
                 end_season_tif_path=end_tif,
-                year=2024
+                year=year,
+                season_type=season
             )
             
             # Update the date widgets
@@ -397,7 +406,17 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
             self.sos_date.setDate(start_qdate)
             self.eos_date.setDate(end_qdate)
             
+            # Print selected parameters for inspection
+            print("\nSelected Parameters:")
+            print(f"Season: {season}")
+            print(f"Year: {year}")
+            print(f"Center Coordinates: ({center_lon}, {center_lat})")
+            print(f"Start of Season: {start_date}")
+            print(f"End of Season: {end_date}")
+            print(f"Start TIF: {start_tif}")
+            print(f"End TIF: {end_tif}")
+            
         except Exception as e:
             # Don't show error message here to avoid spamming the user
             # The error will be caught during the actual download
-            pass 
+            print(f"Error updating dates: {str(e)}") 

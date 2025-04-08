@@ -55,7 +55,7 @@ def get_date_from_day_of_year(day_of_year: int, year: int) -> str:
         raise ValueError(f"{year} is not a leap year.")
     return result_date.strftime("%Y-%m-%d")
 
-def get_dates_from_tifs(point: Point, start_season_tif_path: str, end_season_tif_path: str, year=2020):
+def get_dates_from_tifs(point: Point, start_season_tif_path: str, end_season_tif_path: str, year=2020, season_type='winter'):
     """
     Extract start and end crop calendar dates (day-of-year and date) from GeoTIFFs using rasterio.
 
