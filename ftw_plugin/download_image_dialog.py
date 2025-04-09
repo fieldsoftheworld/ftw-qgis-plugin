@@ -1,6 +1,7 @@
 import os
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
+from qgis.PyQt import QtCore
 from qgis.PyQt.QtCore import QDate
 from qgis.core import QgsProject, QgsMapLayer, QgsRectangle, QgsCoordinateTransform
 from qgis.gui import QgsMapCanvas
@@ -8,6 +9,7 @@ import tempfile
 import sys
 import subprocess
 import json
+import urllib.request
 from qgis.core import QgsApplication
 from .ftw_plugin_dialog import setup_ftw_env
 
@@ -22,15 +24,37 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
         # Set up the dialog from the UI
         self.setupUi(self)
         
-        # Define season TIF paths
-        self.seasons = {
+        # Initialize crop calendar paths
+        self.crop_calendar_dir = os.path.join(
+            QgsApplication.qgisSettingsDirPath(),
+            'ftw_crop_calendars'
+        )
+        os.makedirs(self.crop_calendar_dir, exist_ok=True)
+        
+        # Define crop calendar files
+        self.crop_calendar_files = {
             "summer": {
-                "start": "/Users/gmuhawen/Gedeon/RESEARCH/FTW/ftw_data_download/data/sc_sos_3x3_v2.tiff",
-                "end": "/Users/gmuhawen/Gedeon/RESEARCH/FTW/ftw_data_download/data/sc_eos_3x3_v2.tiff"
+                "start": "sc_sos_3x3_v2.tiff",
+                "end": "sc_eos_3x3_v2.tiff"
             },
             "winter": {
-                "start": "/Users/gmuhawen/Gedeon/RESEARCH/FTW/ftw_data_download/data/wc_eos_3x3_v2.tiff",
-                "end": "/Users/gmuhawen/Gedeon/RESEARCH/FTW/ftw_data_download/data/wc_sos_3x3_v2.tiff"
+                "start": "wc_sos_3x3_v2.tiff",
+                "end": "wc_eos_3x3_v2.tiff"
+            }
+        }
+        
+        # Download crop calendar files if needed
+        self.download_crop_calendars()
+        
+        # Define season TIF paths using local files
+        self.seasons = {
+            "summer": {
+                "start": os.path.join(self.crop_calendar_dir, self.crop_calendar_files["summer"]["start"]),
+                "end": os.path.join(self.crop_calendar_dir, self.crop_calendar_files["summer"]["end"])
+            },
+            "winter": {
+                "start": os.path.join(self.crop_calendar_dir, self.crop_calendar_files["winter"]["start"]),
+                "end": os.path.join(self.crop_calendar_dir, self.crop_calendar_files["winter"]["end"])
             }
         }
         
@@ -95,6 +119,53 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
         
         # Initial population of raster list
         self.refresh_raster_list()
+    
+    def download_crop_calendars(self):
+        """Download crop calendar files if they don't exist."""
+        base_url = "https://github.com/fieldsoftheworld/ftw-qgis-plugin/raw/main/resources/global_crop_calendars/"
+        
+        for season, files in self.crop_calendar_files.items():
+            for file_type, filename in files.items():
+                local_path = os.path.join(self.crop_calendar_dir, filename)
+                
+                if not os.path.exists(local_path):
+                    try:
+                        # Show progress dialog
+                        progress = QtWidgets.QProgressDialog(
+                            f"Downloading {filename}...",
+                            "Cancel",
+                            0,
+                            100,
+                            self
+                        )
+                        progress.setWindowTitle("Downloading Crop Calendars")
+                        progress.setWindowModality(QtCore.Qt.WindowModal)
+                        progress.show()
+                        
+                        def update_progress(block_num, block_size, total_size):
+                            if total_size > 0:
+                                percent = min(100, int(block_num * block_size * 100 / total_size))
+                                progress.setValue(percent)
+                                QtWidgets.QApplication.processEvents()
+                        
+                        # Download the file
+                        urllib.request.urlretrieve(
+                            base_url + filename,
+                            local_path,
+                            reporthook=update_progress
+                        )
+                        
+                        progress.close()
+                        
+                    except Exception as e:
+                        QtWidgets.QMessageBox.critical(
+                            self,
+                            "Error",
+                            f"Failed to download {filename}: {str(e)}"
+                        )
+                        return False
+        
+        return True
     
     def setup_download_utils(self):
         """Set up the download utilities after ensuring conda environment is activated."""
