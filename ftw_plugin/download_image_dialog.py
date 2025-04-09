@@ -41,7 +41,7 @@ class DownloadImageDialog(QtWidgets.QDialog, FORM_CLASS):
         # Set default cloud cover threshold
         self.cloud_cover_threshold.setValue(20)  # Default to 20%
         self.cloud_cover_threshold.setRange(0, 100)  # Allow 0-100%
-        self.cloud_cover_threshold.setSuffix("%")  # Add % suffix
+        # self.cloud_cover_threshold.setSuffix("%")  # Add % suffix
         
         # Create a button group for crop type radio buttons
         self.crop_type_group = QtWidgets.QButtonGroup(self)
